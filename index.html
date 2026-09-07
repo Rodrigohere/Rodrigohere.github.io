@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CRU</title>
+<meta name="description" content="Tradutor sem filtro. Cultura não se traduz, intenção atravessa.">
+<link rel="manifest" href="/manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="CRU">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<meta name="theme-color" content="#1c1917">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html { -webkit-text-size-adjust:100%; }
+  body {
+    font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
+    background:#fffbeb; color:#1c1917; min-height:100vh;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  header {
+    padding:18px 16px 12px; border-bottom:4px solid #1c1917;
+    display:flex; align-items:flex-end; justify-content:space-between; gap:8px; flex-wrap:wrap;
+    position:sticky; top:0; background:#fffbeb; z-index:10;
+    padding-top: calc(18px + env(safe-area-inset-top));
+  }
+  h1 { font-size:34px; font-weight:900; letter-spacing:-2px; line-height:1; }
+  h1 .dot { color:#b91c1c; }
+  .sub { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:2px; color:#78716c; margin-top:3px; }
+  select {
+    background:#1c1917; color:#fffbeb; font-size:13px; font-weight:700;
+    padding:8px 10px; border:2px solid #1c1917; border-radius:0;
+    -webkit-appearance:none; appearance:none; max-width:46vw;
+  }
+  main { padding:14px 14px 60px; max-width:640px; margin:0 auto; }
+  .box { border:4px solid #1c1917; background:#fff; }
+  textarea {
+    width:100%; padding:14px; font-size:17px; border:none; outline:none;
+    resize:none; background:transparent; font-family:inherit; min-height:84px;
+  }
+  textarea::placeholder { color:#a8a29e; }
+  .bar {
+    display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between;
+    gap:8px; border-top:2px solid #e7e5e4; padding:8px 10px;
+  }
+  .modes { display:flex; gap:2px; }
+  .modes button {
+    font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1px;
+    padding:6px 8px; border:none; background:transparent; color:#a8a29e; white-space:nowrap;
+  }
+  .modes button.on { background:#1c1917; color:#fffbeb; }
+  .go {
+    background:#b91c1c; color:#fffbeb; font-weight:900; text-transform:uppercase;
+    letter-spacing:1px; padding:9px 16px; border:none; font-size:13px;
+    white-space:nowrap; flex-shrink:0;
+  }
+  .go:disabled { opacity:.3; }
+  .go:active { transform:translateY(1px); }
+  .hint { font-size:11px; color:#78716c; margin:6px 2px 0; font-weight:500; }
+  .loading { margin-top:22px; display:flex; align-items:center; gap:10px; color:#78716c; font-weight:700; font-size:14px; }
+  .pulse { width:11px; height:11px; background:#b91c1c; animation:p 1s infinite; }
+  @keyframes p { 50% { opacity:.2; } }
+  .err { margin-top:16px; border:4px solid #b91c1c; background:#fef2f2; padding:14px; font-weight:700; color:#991b1b; font-size:14px; }
+  .res { margin-top:18px; }
+  .card-main { border:4px solid #1c1917; background:#1c1917; color:#fffbeb; padding:18px; }
+  .meta { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; gap:8px; }
+  .tag { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:2px; color:rgba(255,251,235,.5); }
+  .toggle-formal {
+    font-size:9px; font-weight:900; text-transform:uppercase; letter-spacing:1px;
+    padding:5px 9px; border:2px solid rgba(255,251,235,.3); background:transparent;
+    color:rgba(255,251,235,.6);
+  }
+  .toggle-formal.on { background:#fffbeb; color:#1c1917; border-color:#fffbeb; }
+  .big { font-size:22px; font-weight:700; line-height:1.35; word-break:break-word; }
+  .fala { font-size:13px; color:rgba(255,251,235,.6); font-style:italic; margin-top:8px; }
+  .copybtn {
+    margin-top:14px; background:#fffbeb; color:#1c1917; font-weight:900;
+    text-transform:uppercase; letter-spacing:1px; font-size:12px;
+    padding:9px 14px; border:none;
+  }
+  .copybtn:active { transform:translateY(1px); }
+  .sub-card { border:4px solid #1c1917; border-top:none; background:#fff; padding:13px 14px; }
+  .sub-label { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:2px; margin-bottom:4px; }
+  .sub-label.red { color:#b91c1c; }
+  .sub-label.grey { color:#a8a29e; }
+  .sub-card p { font-size:14px; color:#44403c; }
+  .sub-card .alt { font-size:15px; font-weight:600; color:#1c1917; }
+  .linkbtn { font-size:11px; font-weight:700; text-transform:uppercase; color:#78716c; background:none; border:none; text-decoration:underline; margin-top:5px; padding:0; }
+  .word-head { background:#1c1917; color:#fffbeb; padding:11px 14px; display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+  .word-head .w { font-size:19px; font-weight:900; }
+  .sense { padding:13px 14px; }
+  .sense + .sense { border-top:2px solid #e7e5e4; }
+  .sense-top { display:flex; align-items:center; gap:7px; margin-bottom:5px; }
+  .num { color:#b91c1c; font-weight:900; font-size:13px; }
+  .ctx { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:#78716c; }
+  .sense-row { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .sense-tr { font-size:19px; font-weight:700; word-break:break-word; }
+  .ex { font-size:13px; color:#44403c; font-style:italic; margin-top:5px; }
+  .ex-o { font-size:11px; color:#a8a29e; margin-top:2px; }
+  .hist { margin-top:30px; }
+  .hist-item {
+    display:block; width:100%; text-align:left; font-size:13px; color:#57534e;
+    border:none; border-left:4px solid #d6d3d1; background:none; padding:5px 0 5px 10px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  footer { text-align:center; padding:14px; font-size:10px; color:#a8a29e; font-weight:500; }
+  .gear { background:none; border:none; font-size:18px; padding:4px; }
+  .overlay {
+    position:fixed; inset:0; background:rgba(28,25,23,.92); z-index:50;
+    display:flex; align-items:center; justify-content:center; padding:20px;
+  }
+  .panel { background:#fffbeb; border:4px solid #1c1917; padding:20px; width:100%; max-width:420px; }
+  .panel h2 { font-size:20px; font-weight:900; margin-bottom:6px; }
+  .panel p { font-size:13px; color:#57534e; margin-bottom:12px; line-height:1.4; }
+  .panel input {
+    width:100%; padding:12px; font-size:15px; border:3px solid #1c1917;
+    background:#fff; outline:none; font-family:monospace;
+  }
+  .panel .go { width:100%; margin-top:12px; padding:12px; font-size:14px; }
+  .panel .linkbtn { margin-top:10px; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>CRU<span class="dot">.</span></h1>
+    <div class="sub">tradutor sem filtro</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:6px;">
+    <select id="lang"></select>
+    <button class="gear" id="gear" title="Configurar">⚙️</button>
+  </div>
+</header>
+
+<main>
+  <div class="box">
+    <textarea id="input" rows="3" placeholder="Escreve do teu jeito. Palavrão, gíria, ironia, tudo passa."></textarea>
+    <div class="bar">
+      <div class="modes" id="modes">
+        <button data-m="auto" class="on">auto</button>
+        <button data-m="frase">frase</button>
+        <button data-m="palavra">palavra</button>
+      </div>
+      <button class="go" id="go" disabled>Traduzir</button>
+    </div>
+  </div>
+  <div class="hint hidden" id="hint"></div>
+  <div class="err hidden" id="err"></div>
+  <div class="loading hidden" id="loading"><span class="pulse"></span> traduzindo sem passar pano...</div>
+  <div class="res hidden" id="res"></div>
+  <div class="hist hidden" id="hist">
+    <div class="sub-label grey" style="margin-bottom:6px;">histórico</div>
+    <div id="histlist"></div>
+  </div>
+</main>
+
+<footer>cultura não se traduz. intenção atravessa.</footer>
+
+<div class="overlay hidden" id="setup">
+  <div class="panel">
+    <h2>Chave da API</h2>
+    <p>O CRU usa a IA do Claude direto do teu aparelho. Cola aqui a tua chave da API da Anthropic (a mesma que roda a Valentina). Ela fica salva só neste aparelho, não vai pra servidor nenhum.</p>
+    <input type="password" id="keyinput" placeholder="sk-ant-...">
+    <button class="go" id="savekey">Salvar e usar</button>
+    <button class="linkbtn" id="closesetup">fechar</button>
+  </div>
+</div>
+
+<script>
+const LANGS = [
+  ["es","Español","🇵🇦"],["en","English","🇺🇸"],["ru","Русский","🇷🇺"],
+  ["fr","Français","🇫🇷"],["it","Italiano","🇮🇹"],["de","Deutsch","🇩🇪"],
+  ["zh","中文","🇨🇳"],["ja","日本語","🇯🇵"],["ko","한국어","🇰🇷"],
+  ["ar","العربية","🇸🇦"],["tr","Türkçe","🇹🇷"],["th","ไทย","🇹🇭"],
+  ["vi","Tiếng Việt","🇻🇳"],["id","Indonesia","🇮🇩"],["nl","Nederlands","🇳🇱"],
+  ["el","Ελληνικά","🇬🇷"],["hi","हिन्दी","🇮🇳"],["pl","Polski","🇵🇱"]
+];
+const $ = (id) => document.getElementById(id);
+const state = {
+  mode: "auto",
+  target: localStorage.getItem("cru_lang") || "es",
+  key: localStorage.getItem("cru_key") || "",
+  hist: JSON.parse(localStorage.getItem("cru_hist") || "[]"),
+  result: null, showFormal: false
+};
+
+// idiomas
+const sel = $("lang");
+LANGS.forEach(([c,l,f]) => {
+  const o = document.createElement("option");
+  o.value = c; o.textContent = `${f} PT ↔ ${l}`;
+  sel.appendChild(o);
+});
+sel.value = state.target;
+sel.onchange = () => { state.target = sel.value; localStorage.setItem("cru_lang", sel.value); };
+
+const langName = (c) => (LANGS.find(x => x[0]===c)||[,"?"])[1];
+
+const isWord = (t) => {
+  const c = t.trim();
+  return c && c.split(/\s+/).length <= 2 && !/[.!?,;:]/.test(c);
+};
+
+const limpar = (t) => {
+  if (!t || typeof t !== "string") return t;
+  let s = t;
+  s = s.replace(/[¿¡]/g, "");
+  s = s.replace(/\s*[—–]\s*/g, ", ");
+  s = s.replace(/\s+-\s+/g, ", ");
+  s = s.replace(/_/g, " ");
+  s = s.replace(/(\d):(\d)/g, "$1\u0000$2");
+  s = s.replace(/\s*:\s*/g, ", ");
+  s = s.replace(/\u0000/g, ":");
+  s = s.replace(/;/g, ",");
+  s = s.replace(/["\u201C\u201D«»]/g, "");
+  s = s.replace(/\s{2,}/g, " ").trim();
+  s = s.replace(/\.+$/, "");
+  s = s.replace(/,\s*,/g, ",");
+  return s.trim();
+};
+
+function phrasePrompt(input, target) {
+  const ln = langName(target);
+  return `Você é um tradutor CULTURAL CRU entre português brasileiro e ${ln}.
+
+REGRA CENTRAL: você NUNCA higieniza, suaviza, formaliza ou "adapta culturalmente" o conteúdo. Você traduz a MENSAGEM COM A MESMA ENERGIA. Se o texto é agressivo, a tradução é agressiva no mesmo grau. Se é carinhoso e meloso, sai meloso. Se tem palavrão, sai com palavrão de peso equivalente. Se é irônico, sai irônico. A intenção, a intensidade e o registro atravessam intactos. O ouvinte deve sentir EXATAMENTE o que um brasileiro sentiria ouvindo o original.
+
+O que você adapta é só o veículo linguístico: use a gíria, o palavrão e a construção NATIVA que carrega o mesmo peso e o mesmo tom na língua de destino (para espanhol, priorize o uso latino-americano quando houver diferença). Não traduza literalmente expressões idiomáticas: encontre a equivalente com a mesma força. Nunca troque um insulto por eufemismo, nunca transforme intimidade em formalidade, nunca adicione cortesia que não existia.
+
+DIREÇÃO: detecte o idioma do texto. Se for português, traduza para ${ln}. Se for ${ln} ou outro idioma, traduza para português brasileiro coloquial, mantendo o tom cru original do falante.
+
+FORMATAÇÃO OBRIGATÓRIA DA TRADUÇÃO INFORMAL: sai pronta pra colar no WhatsApp, escrita como nativo escreve no celular de verdade. PROIBIDO TERMINANTEMENTE: travessão e hífen de pontuação, dois pontos, ponto e vírgula, underline, aspas, parênteses, interrogação e exclamação invertidas do espanhol (nativo nenhum usa isso no zap), e ponto final no fim da mensagem. Pontuação permitida: vírgula, e no máximo ? ou ! de fechamento quando a frase realmente pedir. Abreviações naturais da língua são bem-vindas quando o original for informal. A versão "formal" pode usar pontuação completa, a regra dura vale só pra informal.
+
+TEXTO:
+"""${input}"""
+
+Responda SOMENTE com JSON válido, sem markdown, sem texto antes ou depois:
+{"direcao":"pt→${target}" ou "${target}→pt","traducao":"a tradução crua e informal estilo WhatsApp","formal":"a mesma mensagem em registro formal e educado","tom":"1 frase curta em português dizendo como isso chega no ouvinte","fala":"pronúncia romanizada simples pra brasileiro se o destino usar alfabeto não latino, senão null","alternativa":"segunda forma nativa igualmente fiel se existir, senão null"}`;
+}
+
+function wordPrompt(input, target) {
+  const ln = langName(target);
+  return `Você é um dicionário de contextos entre português brasileiro e ${ln}.
+
+O usuário mandou uma palavra ou expressão curta. NÃO assuma o sentido mais usual. Liste TODOS os sentidos relevantes (até 6), do mais comum ao menos comum, cada um com tradução própria e exemplo real coloquial. Inclua gíria e uso vulgar quando existirem, sem censura.
+
+DIREÇÃO: detecte o idioma da palavra. Se for português, sentidos traduzidos para ${ln}. Se for ${ln}, traduzidos para português brasileiro.
+
+PALAVRA: """${input}"""
+
+Responda SOMENTE com JSON válido, sem markdown:
+{"palavra":"a palavra","direcao":"pt→${target}" ou "${target}→pt","sentidos":[{"contexto":"rótulo curto em português","traducao":"equivalente nesse contexto","fala":"pronúncia romanizada se alfabeto não latino, senão null","exemplo":"frase exemplo no idioma de destino","exemplo_origem":"a mesma frase no idioma de origem"}]}`;
+}
+
+async function callClaude(prompt) {
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": state.key,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true"
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-5",
+      max_tokens: 1200,
+      messages: [{ role: "user", content: prompt }]
+    })
+  });
+  if (res.status === 401 || res.status === 403) throw new Error("KEY");
+  if (!res.ok) throw new Error("API " + res.status);
+  const data = await res.json();
+  const text = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n");
+  return JSON.parse(text.replace(/```json|```/g,"").trim());
+}
+
+// UI
+const input = $("input"), go = $("go"), hint = $("hint");
+const effMode = () => state.mode === "auto" ? (isWord(input.value) ? "palavra" : "frase") : state.mode;
+
+input.addEventListener("input", () => {
+  go.disabled = !input.value.trim();
+  if (state.mode === "auto" && input.value.trim()) {
+    hint.classList.remove("hidden");
+    hint.textContent = effMode() === "palavra"
+      ? "→ modo palavra: vou listar todos os sentidos"
+      : "→ modo frase: tradução crua com o teu tom";
+  } else hint.classList.add("hidden");
+});
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); run(); }
+});
+
+$("modes").addEventListener("click", (e) => {
+  const m = e.target.dataset.m;
+  if (!m) return;
+  state.mode = m;
+  document.querySelectorAll("#modes button").forEach(b => b.classList.toggle("on", b.dataset.m === m));
+  input.dispatchEvent(new Event("input"));
+});
+
+async function run() {
+  const text = input.value.trim();
+  if (!text) return;
+  if (!state.key) { $("setup").classList.remove("hidden"); return; }
+  $("err").classList.add("hidden");
+  $("res").classList.add("hidden");
+  $("loading").classList.remove("hidden");
+  go.disabled = true;
+  try {
+    const useWord = effMode() === "palavra";
+    const data = await callClaude(useWord ? wordPrompt(text, state.target) : phrasePrompt(text, state.target));
+    if (!useWord) {
+      data.traducao = limpar(data.traducao);
+      if (data.alternativa) data.alternativa = limpar(data.alternativa);
+    } else if (Array.isArray(data.sentidos)) {
+      data.sentidos = data.sentidos.map(s => ({...s, traducao: limpar(s.traducao)}));
+    }
+    state.result = { type: useWord ? "palavra" : "frase", data, original: text };
+    state.showFormal = false;
+    state.hist = [state.result, ...state.hist].slice(0, 30);
+    localStorage.setItem("cru_hist", JSON.stringify(state.hist));
+    render();
+  } catch (e) {
+    $("loading").classList.add("hidden");
+    const el = $("err");
+    el.classList.remove("hidden");
+    el.textContent = e.message === "KEY"
+      ? "Chave da API inválida. Toca na engrenagem e confere."
+      : "Deu ruim na tradução. Tenta de novo.";
+  } finally { go.disabled = !input.value.trim(); }
+}
+go.onclick = run;
+
+function esc(s){ const d=document.createElement("div"); d.textContent=s??""; return d.innerHTML; }
+
+function render() {
+  $("loading").classList.add("hidden");
+  const r = state.result, res = $("res");
+  if (!r) return;
+  res.classList.remove("hidden");
+  if (r.type === "frase") {
+    const d = r.data;
+    const showF = state.showFormal;
+    res.innerHTML = `
+      <div class="card-main">
+        <div class="meta">
+          <span class="tag">${esc(d.direcao)}${showF ? " · formal" : ""}</span>
+          ${d.formal ? `<button class="toggle-formal ${showF?"on":""}" id="tf">${showF?"voltar pro cru":"modo formal"}</button>` : ""}
+        </div>
+        <div class="big">${esc(showF ? d.formal : d.traducao)}</div>
+        ${d.fala && !showF ? `<div class="fala">🗣 ${esc(d.fala)}</div>` : ""}
+        <button class="copybtn" id="cp">Copiar</button>
+      </div>
+      ${d.tom ? `<div class="sub-card"><div class="sub-label red">como isso chega</div><p>${esc(d.tom)}</p></div>` : ""}
+      ${d.alternativa ? `<div class="sub-card"><div class="sub-label grey">outra forma nativa</div><p class="alt">${esc(d.alternativa)}</p><button class="linkbtn" id="cpalt">copiar essa</button></div>` : ""}
+    `;
+    const tf = $("tf");
+    if (tf) tf.onclick = () => { state.showFormal = !state.showFormal; render(); };
+    $("cp").onclick = (e) => copy(showF ? d.formal : d.traducao, e.target);
+    const ca = $("cpalt");
+    if (ca) ca.onclick = (e) => copy(d.alternativa, e.target);
+  } else {
+    const d = r.data;
+    res.innerHTML = `
+      <div class="box">
+        <div class="word-head">
+          <span class="w">${esc(d.palavra)}</span>
+          <span class="tag">${esc(d.direcao)} · ${(d.sentidos||[]).length} sentidos</span>
+        </div>
+        ${(d.sentidos||[]).map((s,i)=>`
+          <div class="sense">
+            <div class="sense-top"><span class="num">${i+1}</span><span class="ctx">${esc(s.contexto)}</span></div>
+            <div class="sense-row">
+              <span class="sense-tr">${esc(s.traducao)}</span>
+              <button class="linkbtn cps" data-t="${esc(s.traducao)}">copiar</button>
+            </div>
+            ${s.fala ? `<div class="ex-o">🗣 ${esc(s.fala)}</div>` : ""}
+            <div class="ex">${esc(s.exemplo)}</div>
+            <div class="ex-o">${esc(s.exemplo_origem)}</div>
+          </div>`).join("")}
+      </div>`;
+    res.querySelectorAll(".cps").forEach(b => b.onclick = (e) => copy(b.dataset.t, e.target));
+  }
+  renderHist();
+}
+
+async function copy(t, btn) {
+  try { await navigator.clipboard.writeText(t); } catch {}
+  const old = btn.textContent;
+  btn.textContent = "Copiado ✓";
+  setTimeout(() => btn.textContent = old, 1400);
+}
+
+function renderHist() {
+  const h = state.hist;
+  if (h.length <= 1) return;
+  $("hist").classList.remove("hidden");
+  $("histlist").innerHTML = h.slice(1, 15).map((x,i) =>
+    `<button class="hist-item" data-i="${i+1}">${esc(x.original)}</button>`).join("");
+  $("histlist").querySelectorAll(".hist-item").forEach(b => b.onclick = () => {
+    state.result = state.hist[+b.dataset.i];
+    state.showFormal = false;
+    input.value = state.result.original;
+    input.dispatchEvent(new Event("input"));
+    render();
+    window.scrollTo({top:0, behavior:"smooth"});
+  });
+}
+
+// setup da chave
+$("gear").onclick = () => {
+  $("keyinput").value = state.key;
+  $("setup").classList.remove("hidden");
+};
+$("closesetup").onclick = () => $("setup").classList.add("hidden");
+$("savekey").onclick = () => {
+  const k = $("keyinput").value.trim();
+  if (k) {
+    state.key = k;
+    localStorage.setItem("cru_key", k);
+    $("setup").classList.add("hidden");
+    if (input.value.trim()) run();
+  }
+};
+
+if (!state.key) $("setup").classList.remove("hidden");
+if (state.hist.length) { state.result = state.hist[0]; render(); input.value = state.result.original; input.dispatchEvent(new Event("input")); }
+
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});
+</script>
+</body>
+</html>
