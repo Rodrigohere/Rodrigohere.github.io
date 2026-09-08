@@ -76,6 +76,18 @@
   .toggle-formal.on { background:#fffbeb; color:#1c1917; border-color:#fffbeb; }
   .big { font-size:22px; font-weight:700; line-height:1.35; word-break:break-word; }
   .fala { font-size:13px; color:rgba(255,251,235,.6); font-style:italic; margin-top:8px; }
+  .soundbtn {
+    margin-top:14px; margin-left:8px; background:transparent; color:#fffbeb;
+    border:2px solid rgba(255,251,235,.45); font-weight:900;
+    text-transform:uppercase; letter-spacing:1px; font-size:12px; padding:7px 13px;
+  }
+  .soundbtn.on { background:#b91c1c; border-color:#b91c1c; }
+  .soundbtn:active { transform:translateY(1px); }
+  .spk {
+    font-size:11px; font-weight:700; text-transform:uppercase; color:#78716c;
+    background:none; border:none; padding:0 0 0 10px;
+  }
+  .spk.on { color:#b91c1c; }
   .copybtn {
     margin-top:14px; background:#fffbeb; color:#1c1917; font-weight:900;
     text-transform:uppercase; letter-spacing:1px; font-size:12px;
@@ -170,6 +182,51 @@ const LANGS = [
   ["el","Ελληνικά","🇬🇷"],["hi","हिन्दी","🇮🇳"],["pl","Polski","🇵🇱"]
 ];
 const $ = (id) => document.getElementById(id);
+
+// ── VOZ ────────────────────────────────────────────────────────────────────
+// Rodrigo 07/09/2026: "coloca pra escutar como que pronuncia".
+// Usa a voz do proprio aparelho (speechSynthesis): sai na hora, funciona sem
+// internet e nao custa nada por traducao. No iPhone so toca a partir de um
+// toque na tela, e por isso e sempre botao, nunca automatico.
+const TAG = {
+  es:"es-MX", en:"en-US", ru:"ru-RU", fr:"fr-FR", it:"it-IT", de:"de-DE",
+  zh:"zh-CN", ja:"ja-JP", ko:"ko-KR", ar:"ar-SA", tr:"tr-TR", th:"th-TH",
+  vi:"vi-VN", id:"id-ID", nl:"nl-NL", el:"el-GR", hi:"hi-IN", pl:"pl-PL"
+};
+const TEM_VOZ = typeof speechSynthesis !== "undefined" && typeof SpeechSynthesisUtterance !== "undefined";
+
+// A traducao esta na lingua de destino, MENOS quando a direcao termina em "pt"
+// (o usuario mandou em outra lingua e recebeu portugues de volta).
+function tagDaTraducao(direcao) {
+  const d = String(direcao || "");
+  if (/→\s*pt$/.test(d)) return "pt-BR";
+  const m = d.match(/→\s*([a-z]{2})/);
+  return TAG[m && m[1]] || TAG[state.target] || "pt-BR";
+}
+
+let _falandoEm = null;
+function falar(texto, tag, botao) {
+  if (!TEM_VOZ || !texto) return;
+  const mesmo = _falandoEm === botao && speechSynthesis.speaking;
+  speechSynthesis.cancel();                 // sem isso a fila empilha no iOS
+  document.querySelectorAll(".spk.on,.soundbtn.on").forEach(b => b.classList.remove("on"));
+  if (mesmo) { _falandoEm = null; return; } // segundo toque = parar
+  const u = new SpeechSynthesisUtterance(String(texto));
+  u.lang = tag;
+  u.rate = 0.92;                            // um tico mais devagar: e pra APRENDER a falar
+  const v = speechSynthesis.getVoices().find(x => x.lang === tag)
+        || speechSynthesis.getVoices().find(x => x.lang.slice(0,2) === tag.slice(0,2));
+  if (v) u.voice = v;
+  if (botao) {
+    botao.classList.add("on");
+    _falandoEm = botao;
+    u.onend = u.onerror = () => { botao.classList.remove("on"); _falandoEm = null; };
+  }
+  speechSynthesis.speak(u);
+}
+// O iPhone entrega a lista de vozes atrasada; sem isto a primeira fala sai na
+// voz errada porque getVoices() ainda estava vazio.
+if (TEM_VOZ) speechSynthesis.onvoiceschanged = () => {};
 try { localStorage.removeItem("cru_key"); } catch {}
 const state = {
   mode: "auto",
@@ -324,6 +381,7 @@ go.onclick = run;
 function esc(s){ const d=document.createElement("div"); d.textContent=s??""; return d.innerHTML; }
 
 function render() {
+  if (TEM_VOZ) { speechSynthesis.cancel(); _falandoEm = null; }
   $("loading").classList.add("hidden");
   const r = state.result, res = $("res");
   if (!r) return;
@@ -340,15 +398,21 @@ function render() {
         <div class="big">${esc(showF ? d.formal : d.traducao)}</div>
         ${d.fala && !showF ? `<div class="fala">🗣 ${esc(d.fala)}</div>` : ""}
         <button class="copybtn" id="cp">Copiar</button>
+        ${TEM_VOZ ? `<button class="soundbtn" id="ouvir">🔊 Ouvir</button>` : ""}
       </div>
       ${d.tom ? `<div class="sub-card"><div class="sub-label red">como isso chega</div><p>${esc(d.tom)}</p></div>` : ""}
-      ${d.alternativa ? `<div class="sub-card"><div class="sub-label grey">outra forma nativa</div><p class="alt">${esc(d.alternativa)}</p><button class="linkbtn" id="cpalt">copiar essa</button></div>` : ""}
+      ${d.alternativa ? `<div class="sub-card"><div class="sub-label grey">outra forma nativa</div><p class="alt">${esc(d.alternativa)}</p><button class="linkbtn" id="cpalt">copiar essa</button>${TEM_VOZ ? `<button class="spk" id="spkalt">🔊 ouvir</button>` : ""}</div>` : ""}
     `;
     const tf = $("tf");
     if (tf) tf.onclick = () => { state.showFormal = !state.showFormal; render(); };
     $("cp").onclick = (e) => copy(showF ? d.formal : d.traducao, e.target);
     const ca = $("cpalt");
     if (ca) ca.onclick = (e) => copy(d.alternativa, e.target);
+    const tag = tagDaTraducao(d.direcao);
+    const ov = $("ouvir");
+    if (ov) ov.onclick = () => falar(showF ? d.formal : d.traducao, tag, ov);
+    const sa = $("spkalt");
+    if (sa) sa.onclick = () => falar(d.alternativa, tag, sa);
   } else {
     const d = r.data;
     res.innerHTML = `
@@ -362,16 +426,27 @@ function render() {
             <div class="sense-top"><span class="num">${i+1}</span><span class="ctx">${esc(s.contexto)}</span></div>
             <div class="sense-row">
               <span class="sense-tr">${esc(s.traducao)}</span>
-              <button class="linkbtn cps" data-t="${esc(s.traducao)}">copiar</button>
+              <span style="white-space:nowrap">
+                <button class="linkbtn cps" data-t="${esc(s.traducao)}">copiar</button>
+                ${TEM_VOZ ? `<button class="spk spks" data-t="${esc(s.traducao)}">🔊</button>` : ""}
+              </span>
             </div>
             ${s.fala ? `<div class="ex-o">🗣 ${esc(s.fala)}</div>` : ""}
-            <div class="ex">${esc(s.exemplo)}</div>
+            <div class="ex">${esc(s.exemplo)}${TEM_VOZ ? `<button class="spk spks" data-t="${esc(s.exemplo)}">🔊 ouvir</button>` : ""}</div>
             <div class="ex-o">${esc(s.exemplo_origem)}</div>
           </div>`).join("")}
       </div>`;
     res.querySelectorAll(".cps").forEach(b => b.onclick = (e) => copy(b.dataset.t, e.target));
+    const tagP = tagDaTraducao(d.direcao);
+    res.querySelectorAll(".spks").forEach(b => b.onclick = () => falar(b.dataset.t, tagP, b));
   }
   renderHist();
+}
+
+// Trocar de resultado (ou de aba) cala a voz: som de tradução velha tocando por
+// cima da nova é pior que silêncio.
+if (TEM_VOZ) {
+  document.addEventListener("visibilitychange", () => { if (document.hidden) speechSynthesis.cancel(); });
 }
 
 async function copy(t, btn) {
