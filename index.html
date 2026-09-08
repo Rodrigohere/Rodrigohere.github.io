@@ -132,7 +132,6 @@
   </div>
   <div style="display:flex;align-items:center;gap:6px;">
     <select id="lang"></select>
-    <button class="gear" id="gear" title="Configurar">⚙️</button>
   </div>
 </header>
 
@@ -160,15 +159,6 @@
 
 <footer>cultura não se traduz. intenção atravessa.</footer>
 
-<div class="overlay hidden" id="setup">
-  <div class="panel">
-    <h2>Chave da API</h2>
-    <p>O CRU usa a IA do Claude direto do teu aparelho. Cola aqui a tua chave da API da Anthropic (a mesma que roda a Valentina). Ela fica salva só neste aparelho, não vai pra servidor nenhum.</p>
-    <input type="password" id="keyinput" placeholder="sk-ant-...">
-    <button class="go" id="savekey">Salvar e usar</button>
-    <button class="linkbtn" id="closesetup">fechar</button>
-  </div>
-</div>
 
 <script>
 const LANGS = [
@@ -180,10 +170,10 @@ const LANGS = [
   ["el","Ελληνικά","🇬🇷"],["hi","हिन्दी","🇮🇳"],["pl","Polski","🇵🇱"]
 ];
 const $ = (id) => document.getElementById(id);
+try { localStorage.removeItem("cru_key"); } catch {}
 const state = {
   mode: "auto",
   target: localStorage.getItem("cru_lang") || "es",
-  key: localStorage.getItem("cru_key") || "",
   hist: JSON.parse(localStorage.getItem("cru_hist") || "[]"),
   result: null, showFormal: false
 };
@@ -256,26 +246,22 @@ Responda SOMENTE com JSON válido, sem markdown:
 {"palavra":"a palavra","direcao":"pt→${target}" ou "${target}→pt","sentidos":[{"contexto":"rótulo curto em português","traducao":"equivalente nesse contexto","fala":"pronúncia romanizada se alfabeto não latino, senão null","exemplo":"frase exemplo no idioma de destino","exemplo_origem":"a mesma frase no idioma de origem"}]}`;
 }
 
+// Rodrigo 07/09/2026: "eu falei pra nao depender de chave nenhuma". A chave saiu
+// daqui e foi pro servidor (otimizi.com/api/cru/traduzir). O app nao guarda, nao
+// pede e nao sabe de chave: so manda o texto e recebe a traducao.
+const CANO = "https://www.otimizi.com/api/cru/traduzir";
+
 async function callClaude(prompt) {
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+  const res = await fetch(CANO, {
     method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": state.key,
-      "anthropic-version": "2023-06-01",
-      "anthropic-dangerous-direct-browser-access": "true"
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-5",
-      max_tokens: 1200,
-      messages: [{ role: "user", content: prompt }]
-    })
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ prompt })
   });
-  if (res.status === 401 || res.status === 403) throw new Error("KEY");
+  if (res.status === 429) throw new Error("MUITO");
   if (!res.ok) throw new Error("API " + res.status);
   const data = await res.json();
-  const text = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n");
-  return JSON.parse(text.replace(/```json|```/g,"").trim());
+  if (data.erro) throw new Error(data.erro);
+  return JSON.parse(String(data.texto || "").replace(/```json|```/g,"").trim());
 }
 
 // UI
@@ -306,7 +292,6 @@ $("modes").addEventListener("click", (e) => {
 async function run() {
   const text = input.value.trim();
   if (!text) return;
-  if (!state.key) { $("setup").classList.remove("hidden"); return; }
   $("err").classList.add("hidden");
   $("res").classList.add("hidden");
   $("loading").classList.remove("hidden");
@@ -329,8 +314,8 @@ async function run() {
     $("loading").classList.add("hidden");
     const el = $("err");
     el.classList.remove("hidden");
-    el.textContent = e.message === "KEY"
-      ? "Chave da API inválida. Toca na engrenagem e confere."
+    el.textContent = e.message === "MUITO"
+      ? "Muita tradução de uma vez. Espera um minutinho e manda de novo."
       : "Deu ruim na tradução. Tenta de novo.";
   } finally { go.disabled = !input.value.trim(); }
 }
@@ -412,23 +397,6 @@ function renderHist() {
   });
 }
 
-// setup da chave
-$("gear").onclick = () => {
-  $("keyinput").value = state.key;
-  $("setup").classList.remove("hidden");
-};
-$("closesetup").onclick = () => $("setup").classList.add("hidden");
-$("savekey").onclick = () => {
-  const k = $("keyinput").value.trim();
-  if (k) {
-    state.key = k;
-    localStorage.setItem("cru_key", k);
-    $("setup").classList.add("hidden");
-    if (input.value.trim()) run();
-  }
-};
-
-if (!state.key) $("setup").classList.remove("hidden");
 if (state.hist.length) { state.result = state.hist[0]; render(); input.value = state.result.original; input.dispatchEvent(new Event("input")); }
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});

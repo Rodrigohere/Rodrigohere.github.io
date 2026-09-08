@@ -1,4 +1,4 @@
-const CACHE = "cru-v1";
+const CACHE = "cru-v2";  // v2: app sem chave, fala com o cano do cockpit
 const SHELL = ["/", "/index.html", "/manifest.json", "/icon-180.png", "/icon-512.png"];
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
