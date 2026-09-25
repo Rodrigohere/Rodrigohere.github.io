@@ -1,4 +1,4 @@
-const CACHE = "cru-v4";  // v4: funcao ESCREVER (ditado + tons) e botao de limpar
+const CACHE = "cru-v5";  // v5: funcao ESCREVER (ditado + tons), limpar e traduzir paragrafo
 const SHELL = ["/", "/index.html", "/manifest.json", "/icon-180.png", "/icon-512.png"];
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
