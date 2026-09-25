@@ -1,4 +1,4 @@
-const CACHE = "cru-v14";  // v11: o proprio texto vira dicionario das palavras erradas
+const CACHE = "cru-v15";  // v11: o proprio texto vira dicionario das palavras erradas
 const SHELL = ["/", "/index.html", "/manifest.json", "/icon-180.png", "/icon-512.png"];
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

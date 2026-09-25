@@ -406,17 +406,45 @@ Responda SOMENTE com JSON válido, sem markdown:
 // pede e nao sabe de chave: so manda o texto e recebe a traducao.
 const CANO = "https://www.otimizi.com/api/cru/traduzir";
 
+// Rodrigo 25/09/2026: "fica carregando e depois desiste sem me mandar mensagem
+// nenhuma". Eram duas coisas: a resposta voltava cortada (e o app engolia calado)
+// e, quando a conexao do celular sumia no meio, o fetch ficava pendurado pra
+// sempre, sem erro nenhum pra mostrar. Agora tudo tem fim e tudo fala.
+let respostaCortada = false;
+
 async function pedir(prompt, rapido) {
-  const res = await fetch(CANO, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ prompt, rapido: !!rapido })
-  });
+  if (navigator.onLine === false) throw new Error("SEMNET");
+  const corta = new AbortController();
+  const relogio = setTimeout(() => corta.abort(), 90000);
+  let res;
+  try {
+    res = await fetch(CANO, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ prompt, rapido: !!rapido }),
+      signal: corta.signal
+    });
+  } catch (e) {
+    throw new Error(e && e.name === "AbortError" ? "DEMOROU" : "SEMNET");
+  } finally { clearTimeout(relogio); }
   if (res.status === 429) throw new Error("MUITO");
+  if (res.status === 413) throw new Error("GRANDE");
   if (!res.ok) throw new Error("API " + res.status);
   const data = await res.json();
   if (data.erro) throw new Error(data.erro);
+  respostaCortada = data.cortou === true;
   return String(data.texto || "").replace(/```json|```/g, "").trim();
+}
+
+// Uma mensagem pra cada coisa que pode dar errado, em vez de "deu ruim".
+function motivo(e) {
+  const m = (e && e.message) || "";
+  if (m === "MUITO") return "muita coisa de uma vez. espera um minutinho e manda de novo";
+  if (m === "SEMNET") return "sem internet agora. confere a conexão e manda de novo";
+  if (m === "DEMOROU") return "demorou demais e eu desisti. manda de novo, ou corta a fala em duas partes";
+  if (m === "GRANDE") return "essa fala é grande demais até pra mim. corta em duas partes";
+  if (m === "VAZIO") return "voltou vazio. manda de novo";
+  return "não consegui agora (" + (m || "erro") + "). tenta de novo";
 }
 
 async function callClaude(prompt) {
@@ -757,12 +785,23 @@ function erroEsc(msg) {
   const el = $("err2");
   el.classList.remove("hidden");
   el.textContent = msg;
+  el.scrollIntoView({ block: "center", behavior: "smooth" });
+}
+
+// Resposta cortada no meio: mostra o que deu e diz o que aconteceu, em vez de
+// entregar meio texto como se fosse o texto inteiro.
+function avisarSeCortou() {
+  if (!respostaCortada) return;
+  respostaCortada = false;
+  const el = $("err2");
+  el.classList.remove("hidden");
+  el.textContent = "a fala era tão comprida que a resposta veio cortada. o que apareceu está certo, mas faltou o fim: manda a última parte separada";
 }
 
 async function organizar(depoisEnxuga) {
   const bruto = fala.value.trim();
   if (!bruto) return;
-  if (bruto.length > 4000) return erroEsc("falou demais de uma vez. corta em duas partes e manda de novo");
+  if (bruto.length > 15000) return erroEsc("falou demais de uma vez. corta em duas partes e manda de novo");
   $("err2").classList.add("hidden");
   $("res2").innerHTML = "";
   $("loading2").classList.remove("hidden");
@@ -770,20 +809,21 @@ async function organizar(depoisEnxuga) {
   try {
     const cru = await pedir(textoPrompt(bruto, redator.tom));
     const texto = arrumaTexto(soOTexto(cru), redator.tom);
+    const pedacos = texto.split(/\n{2,}/).map(x => x.trim()).filter(Boolean);
+    if (!pedacos.length) throw new Error("VAZIO");
     redator.bruto = bruto;
-    redator.paras = texto.split(/\n{2,}/).map(x => x.trim()).filter(Boolean);
+    redator.paras = pedacos;
     redator.trads = {};
     redator.marcados.clear();
     redator.editando = null;
     redator.completo = null;
     guardar(bruto);
     $("loading2").classList.add("hidden");
+    avisarSeCortou();
     renderRed();
     if (depoisEnxuga) enxugar();
   } catch (e) {
-    erroEsc(e.message === "MUITO"
-      ? "muita coisa de uma vez. espera um minutinho e manda de novo"
-      : "deu ruim aqui. tenta de novo");
+    erroEsc(motivo(e));
   } finally { org.disabled = !fala.value.trim(); }
 }
 // sem a seta aqui o proprio evento do clique entrava como "depoisEnxuga" e o
@@ -913,11 +953,12 @@ async function enxugar() {
     redator.trads = {};
     redator.marcados.clear();
     $("loading2").classList.add("hidden");
+    avisarSeCortou();
     guardar();
     renderRed();
     window.scrollTo({ top: document.body.scrollHeight / 3, behavior: "smooth" });
   } catch (e) {
-    erroEsc(e.message === "MUITO" ? "espera um minutinho e tenta de novo" : "não consegui enxugar agora");
+    erroEsc(motivo(e));
   }
 }
 
@@ -947,7 +988,7 @@ async function traduzirPara(i, btn) {
   } catch (e) {
     btn.textContent = antes;
     btn.disabled = false;
-    toast(e.message === "MUITO" ? "espera um minutinho" : "não deu pra traduzir");
+    toast(motivo(e));
   }
 }
 
@@ -1042,7 +1083,7 @@ abrirTela(localStorage.getItem("cru_tela") || "traduzir");
 // sozinho nem com a publicacao feita. Agora ele pergunta a versao toda vez que
 // volta pra frente e se atualiza. Se tiver texto na tela, ele nao toma a decisao
 // pelo Rodrigo: mostra o botao e espera o toque.
-const VERSAO = "14";
+const VERSAO = "15";
 
 // Texto guardado volta sozinho depois do reload, entao nao e motivo pra segurar
 // a atualizacao. Só segura o que se perderia: uma edicao aberta ou algo digitado
