@@ -44,7 +44,7 @@
   textarea::placeholder { color:#a8a29e; }
   .bar {
     display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between;
-    gap:8px; border-top:2px solid #e7e5e4; padding:8px 10px;
+    gap:8px; border-top:2px solid #e7e5e4; padding:8px 10px; max-width:100%;
   }
   .modes { display:flex; gap:2px; }
   .modes button {
@@ -168,6 +168,12 @@
   }
   .go.preta { background:#1c1917; }
   .go.preta:disabled { opacity:.25; }
+  /* Rodrigo 25/09: os tres botoes lado a lado empurraram o ORGANIZAR pra fora da
+     tela. Agora eles tomam a linha inteira e dividem o espaco entre si, entao
+     nao tem largura de aparelho que estoure. */
+  .botoes { display:flex; gap:6px; width:100%; margin-top:8px; }
+  .botoes .go { flex:1; min-width:0; padding:11px 6px; font-size:12px; }
+  .botoes .limpa { flex:0 0 auto; padding:6px 11px; font-size:13px; }
   .bloco { display:flex; gap:11px; align-items:flex-start; }
   .bloco + .bloco, .para-acoes + .bloco, .para-tr + .bloco { border-top:2px dotted #e7e5e4; padding-top:16px; }
   .caixa {
@@ -238,8 +244,8 @@
     <textarea id="fala" rows="4" placeholder="Toca aqui, aperta o 🎤 do teclado do teu iPhone e fala à vontade. Depois é só ORGANIZAR."></textarea>
     <div class="bar">
       <div class="dita">🎤 dita pelo teclado</div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <button class="limpa hidden" id="limpa2">✕ limpar</button>
+      <div class="botoes">
+        <button class="limpa hidden" id="limpa2">✕</button>
         <button class="go preta" id="enxuga" disabled>✂️ enxugar</button>
         <button class="go" id="org" disabled>Organizar</button>
       </div>
@@ -667,6 +673,11 @@ function soOTexto(cru) {
   return String(cru).trim();
 }
 
+// Rodrigo 25/09/2026: "eu tinha feito uma organizacao antes e acabei excluindo
+// atualizando o aplicativo e perdi, e eu tenho que falar tudo de novo". O
+// historico so guardava a fala crua, e a primeira (a da tela) nem aparecia na
+// lista. Agora o aparelho guarda tambem o texto ARRUMADO e o rascunho do campo:
+// fechou, atualizou, caiu a bateria, volta tudo do jeito que estava.
 const redator = {
   tom: localStorage.getItem("cru_tom") || "natural",
   paras: [],
@@ -720,6 +731,7 @@ fala.addEventListener("input", () => {
   org.disabled = !fala.value.trim();
   $("limpa2").classList.toggle("hidden", !fala.value.trim());
   pintarEnxuga();
+  try { localStorage.setItem("cru_red_rascunho", fala.value); } catch {}
 });
 
 $("limpa2").onclick = () => {
@@ -764,8 +776,7 @@ async function organizar(depoisEnxuga) {
     redator.marcados.clear();
     redator.editando = null;
     redator.completo = null;
-    redator.hist = [{ bruto, tom: redator.tom }, ...redator.hist.filter(h => h.bruto !== bruto)].slice(0, 15);
-    localStorage.setItem("cru_red_hist", JSON.stringify(redator.hist));
+    guardar(bruto);
     $("loading2").classList.add("hidden");
     renderRed();
     if (depoisEnxuga) enxugar();
@@ -775,7 +786,9 @@ async function organizar(depoisEnxuga) {
       : "deu ruim aqui. tenta de novo");
   } finally { org.disabled = !fala.value.trim(); }
 }
-org.onclick = organizar;
+// sem a seta aqui o proprio evento do clique entrava como "depoisEnxuga" e o
+// ORGANIZAR saia enxugando em seguida, sem ninguem pedir
+org.onclick = () => organizar();
 
 function renderRed() {
   const res = $("res2");
@@ -855,11 +868,13 @@ function renderRed() {
       redator.paras.splice(i, 1);
       redator.marcados.clear();
       redator.trads = {};
+      guardar();
       renderRed();
       return toast("parágrafo apagado ✓");
     }
     redator.paras[i] = novo;
     delete redator.trads[i];          // traducao velha nao vale mais pro texto novo
+    guardar();
     renderRed();
     toast("parágrafo salvo ✓");
   });
@@ -898,6 +913,7 @@ async function enxugar() {
     redator.trads = {};
     redator.marcados.clear();
     $("loading2").classList.add("hidden");
+    guardar();
     renderRed();
     window.scrollTo({ top: document.body.scrollHeight / 3, behavior: "smooth" });
   } catch (e) {
@@ -911,6 +927,7 @@ function voltarCompleto() {
   redator.completo = null;
   redator.trads = {};
   redator.marcados.clear();
+  guardar();
   renderRed();
 }
 
@@ -934,15 +951,36 @@ async function traduzirPara(i, btn) {
   }
 }
 
+// Guarda a fala e o texto arrumado dela. Chamado depois de organizar, de enxugar
+// e de qualquer edicao na mao, senao o que volta nao e o que ele deixou na tela.
+function guardar(bruto) {
+  const b = bruto || redator.bruto;
+  if (!b) return;
+  const item = { bruto: b, tom: redator.tom, paras: redator.paras, completo: redator.completo, quando: Date.now() };
+  redator.hist = [item, ...redator.hist.filter(h => h.bruto !== b)].slice(0, 15);
+  try { localStorage.setItem("cru_red_hist", JSON.stringify(redator.hist)); } catch {}
+}
+
 function renderHistRed() {
   const h = redator.hist;
-  if (h.length <= 1) return;
+  if (!h.length) return;
   $("hist2").classList.remove("hidden");
-  $("histlist2").innerHTML = h.slice(1, 10).map((x, i) =>
-    `<button class="hist-item" data-i="${i + 1}">${esc(x.bruto)}</button>`).join("");
+  $("histlist2").innerHTML = h.slice(0, 12).map((x, i) =>
+    `<button class="hist-item" data-i="${i}">${x.paras && x.paras.length ? "📄 " : ""}${esc(x.bruto)}</button>`).join("");
+  // Tocar num texto de antes traz ele PRONTO de volta, sem pedir nada de novo pro
+  // servidor: o arrumado ja estava guardado aqui.
   $("histlist2").querySelectorAll(".hist-item").forEach(b => b.onclick = () => {
-    fala.value = redator.hist[+b.dataset.i].bruto;
+    const x = redator.hist[+b.dataset.i];
+    if (!x) return;
+    fala.value = x.bruto;
     fala.dispatchEvent(new Event("input"));
+    redator.bruto = x.bruto;
+    redator.paras = x.paras || [];
+    redator.completo = x.completo || null;
+    redator.trads = {};
+    redator.marcados.clear();
+    redator.editando = null;
+    renderRed();
     window.scrollTo({ top: 0, behavior: "smooth" });
   });
 }
@@ -979,7 +1017,23 @@ sel.addEventListener("change", () => { redator.trads = {}; if (redator.paras.len
 
 document.querySelectorAll("#tons button").forEach(b => b.classList.toggle("on", b.dataset.t === redator.tom));
 dicaTom();
-pintarEnxuga();
+
+// Volta o que ficou na tela da ultima vez: o rascunho do campo e, se houver, o
+// texto ja arrumado. Nada disso custa chamada nenhuma, ta tudo no aparelho.
+(function retomar() {
+  let rascunho = "";
+  try { rascunho = localStorage.getItem("cru_red_rascunho") || ""; } catch {}
+  const ultimo = redator.hist[0];
+  if (ultimo && ultimo.paras && ultimo.paras.length) {
+    redator.bruto = ultimo.bruto;
+    redator.paras = ultimo.paras;
+    redator.completo = ultimo.completo || null;
+    if (!rascunho) rascunho = ultimo.bruto;
+    renderRed();
+  }
+  if (rascunho) { fala.value = rascunho; fala.dispatchEvent(new Event("input")); }
+  pintarEnxuga();
+})();
 abrirTela(localStorage.getItem("cru_tela") || "traduzir");
 
 // ── versao nova chega sozinha ─────────────────────────────────────────────
@@ -988,10 +1042,13 @@ abrirTela(localStorage.getItem("cru_tela") || "traduzir");
 // sozinho nem com a publicacao feita. Agora ele pergunta a versao toda vez que
 // volta pra frente e se atualiza. Se tiver texto na tela, ele nao toma a decisao
 // pelo Rodrigo: mostra o botao e espera o toque.
-const VERSAO = "13";
+const VERSAO = "14";
 
+// Texto guardado volta sozinho depois do reload, entao nao e motivo pra segurar
+// a atualizacao. Só segura o que se perderia: uma edicao aberta ou algo digitado
+// na tela de traduzir, que nao tem gaveta.
 function trabalhoEmAndamento() {
-  return !!(input.value.trim() || fala.value.trim() || redator.paras.length || redator.editando !== null);
+  return !!(input.value.trim() || redator.editando !== null);
 }
 
 function mostrarBotaoAtualizar() {
