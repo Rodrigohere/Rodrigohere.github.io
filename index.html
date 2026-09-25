@@ -142,7 +142,8 @@
   .troca:active { transform:translateY(1px); }
   .limpa {
     font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:1px;
-    background:transparent; border:2px solid #d6d3d1; color:#78716c; padding:6px 10px;
+    background:transparent; border:2px solid #d6d3d1; color:#78716c; padding:6px 8px;
+    white-space:nowrap;
   }
   .limpa:active { transform:translateY(1px); }
   .para-acoes { display:flex; gap:8px; flex-wrap:wrap; margin:-6px 0 16px; }
@@ -161,6 +162,12 @@
   .tons button + button { border-left:2px solid #e7e5e4; }
   .tons button.on { background:#1c1917; color:#fffbeb; }
   .texto-card { margin-top:18px; border:4px solid #1c1917; background:#fff; padding:16px 16px 0; }
+  .enxuto {
+    margin-top:18px; margin-bottom:-18px; background:#1c1917; color:#fffbeb; padding:9px 12px;
+    font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:1px;
+  }
+  .go.preta { background:#1c1917; }
+  .go.preta:disabled { opacity:.25; }
   .bloco { display:flex; gap:11px; align-items:flex-start; }
   .bloco + .bloco, .para-acoes + .bloco, .para-tr + .bloco { border-top:2px dotted #e7e5e4; padding-top:16px; }
   .caixa {
@@ -233,6 +240,7 @@
       <div class="dita">🎤 dita pelo teclado</div>
       <div style="display:flex;align-items:center;gap:8px;">
         <button class="limpa hidden" id="limpa2">✕ limpar</button>
+        <button class="go preta" id="enxuga" disabled>✂️ enxugar</button>
         <button class="go" id="org" disabled>Organizar</button>
       </div>
     </div>
@@ -602,6 +610,30 @@ Responda SOMENTE com JSON válido, sem markdown, sem texto antes ou depois:
 {"texto":"o texto arrumado, com os parágrafos separados por \\n\\n"}`;
 }
 
+// Rodrigo 25/09/2026: "as vezes eu falo demais e falo uma coisa no comeco que
+// depois fica redundante no meio ou no fim, queria uma opcao onde se observa todo
+// o contexto geral e consegue se resumir". Isto nao e resumo de escola: nenhuma
+// informacao pode sumir. O que sai e a repeticao e o rodeio.
+function enxugarPrompt(texto, tom) {
+  return `Este texto foi FALADO por uma pessoa e já está arrumado em parágrafos. Ela fala demais e repete: diz uma coisa no começo que volta no meio e de novo no fim, e dá voltas antes de chegar no ponto.
+
+SUA TAREFA: entregar o MESMO recado, enxuto. Junte num lugar só o que está espalhado, corte a repetição e o rodeio, e chegue direto no ponto.
+
+O QUE NÃO PODE SUMIR: nenhum fato, número, valor, prazo, data, nome de pessoa, empresa ou lugar, nenhum pedido e nenhuma pergunta. Se ele perguntou três coisas, as três continuam lá. Enxugar é tirar o que está repetido ou sobrando, nunca tirar informação. Você também não acrescenta nada, não conclui por ele e não dá opinião.
+
+Se o texto já for direto e não tiver repetição, devolva quase igual: não corte por cortar.
+
+TOM, o mesmo de antes: ${TOM_REGRA[tom] || TOM_REGRA.natural}
+
+PROIBIDO: travessão e hífen de pontuação (onde ele apareceria, use vírgula, ponto ou frase nova), emoji, bullet, título, asterisco e frase de robô.
+
+TEXTO:
+"""${texto}"""
+
+Responda SOMENTE com JSON válido, sem markdown:
+{"texto":"o texto enxuto, com os parágrafos separados por \n\n"}`;
+}
+
 // Cinto de seguranca: mesmo mandado, as vezes escapa um travessao ou um ponto
 // no tom solto. Aqui nao escapa.
 function arrumaTexto(t, tom) {
@@ -638,6 +670,7 @@ function soOTexto(cru) {
 const redator = {
   tom: localStorage.getItem("cru_tom") || "natural",
   paras: [],
+  completo: null,        // o texto antes de enxugar, pra ele poder voltar
   marcados: new Set(),
   editando: null,
   bruto: "",
@@ -668,9 +701,25 @@ function toast(msg) {
 // ── tela de escrever ───────────────────────────────────────────────────────
 function dicaTom() { $("dicatom").textContent = TOM_DICA[redator.tom]; }
 
+// O botao de enxugar mora na barra de cima, do lado do ORGANIZAR, e troca de
+// cara conforme o estado: enxuga quando tem texto inteiro, volta quando ja esta
+// enxuto, e fica apagado quando nao ha nada pra enxugar.
+function pintarEnxuga() {
+  const b = $("enxuga");
+  b.textContent = redator.completo ? "↩ completo" : "✂️ enxugar";
+  b.disabled = !redator.paras.length && !fala.value.trim();
+}
+
+$("enxuga").onclick = () => {
+  if (redator.completo) return voltarCompleto();
+  if (!redator.paras.length) return organizar(true);   // ditou e ja quer so o resumo
+  enxugar();
+};
+
 fala.addEventListener("input", () => {
   org.disabled = !fala.value.trim();
   $("limpa2").classList.toggle("hidden", !fala.value.trim());
+  pintarEnxuga();
 });
 
 $("limpa2").onclick = () => {
@@ -686,7 +735,9 @@ $("tons").addEventListener("click", (e) => {
   localStorage.setItem("cru_tom", t);
   document.querySelectorAll("#tons button").forEach(b => b.classList.toggle("on", b.dataset.t === t));
   dicaTom();
-  if (redator.bruto) organizar();   // trocou o tom com texto na tela: refaz na hora
+  // trocou o tom com texto na tela: refaz na hora, e se estava enxuto continua
+  // enxuto, so que no tom novo
+  if (redator.bruto) organizar(!!redator.completo);
 });
 
 function erroEsc(msg) {
@@ -696,7 +747,7 @@ function erroEsc(msg) {
   el.textContent = msg;
 }
 
-async function organizar() {
+async function organizar(depoisEnxuga) {
   const bruto = fala.value.trim();
   if (!bruto) return;
   if (bruto.length > 4000) return erroEsc("falou demais de uma vez. corta em duas partes e manda de novo");
@@ -712,10 +763,12 @@ async function organizar() {
     redator.trads = {};
     redator.marcados.clear();
     redator.editando = null;
+    redator.completo = null;
     redator.hist = [{ bruto, tom: redator.tom }, ...redator.hist.filter(h => h.bruto !== bruto)].slice(0, 15);
     localStorage.setItem("cru_red_hist", JSON.stringify(redator.hist));
     $("loading2").classList.add("hidden");
     renderRed();
+    if (depoisEnxuga) enxugar();
   } catch (e) {
     erroEsc(e.message === "MUITO"
       ? "muita coisa de uma vez. espera um minutinho e manda de novo"
@@ -729,7 +782,9 @@ function renderRed() {
   if (!redator.paras.length) { res.innerHTML = ""; return; }
   const bandeira = (LANGS.find(x => x[0] === state.target) || [,,"🌐"])[2];
   const marcados = () => redator.paras.map((t, i) => i).filter(i => redator.marcados.has(i));
+  const letras = (a) => a.join(" ").length;
   res.innerHTML = `
+    ${redator.completo ? `<div class="enxuto">versão enxuta · ${redator.paras.length} parágrafo${redator.paras.length > 1 ? "s" : ""} no lugar de ${redator.completo.length}, ${Math.max(1, Math.round(100 - letras(redator.paras) / letras(redator.completo) * 100))}% menor</div>` : ""}
     <div class="texto-card">
       ${redator.paras.map((t, i) => {
         const tr = redator.trads[i];
@@ -822,8 +877,41 @@ function renderRed() {
   };
   const dm = $("desmarca");
   if (dm) dm.onclick = () => { redator.marcados.clear(); renderRed(); };
-  $("refaz").onclick = () => organizar();
+  $("refaz").onclick = () => organizar(!!redator.completo);
+  pintarEnxuga();
   renderHistRed();
+}
+
+async function enxugar() {
+  if (!redator.paras.length) return;
+  const inteiro = redator.paras.join("\n\n");
+  $("err2").classList.add("hidden");
+  $("loading2").classList.remove("hidden");
+  $("loading2").innerHTML = '<span class="pulse"></span> lendo tudo de novo e tirando o que se repete...';
+  try {
+    const cru = await pedir(enxugarPrompt(inteiro, redator.tom));
+    const texto = arrumaTexto(soOTexto(cru), redator.tom);
+    const novos = texto.split(/\n{2,}/).map(x => x.trim()).filter(Boolean);
+    if (!novos.length) throw new Error("voltou vazio");
+    redator.completo = redator.paras;     // guarda o de antes pra ele poder voltar
+    redator.paras = novos;
+    redator.trads = {};
+    redator.marcados.clear();
+    $("loading2").classList.add("hidden");
+    renderRed();
+    window.scrollTo({ top: document.body.scrollHeight / 3, behavior: "smooth" });
+  } catch (e) {
+    erroEsc(e.message === "MUITO" ? "espera um minutinho e tenta de novo" : "não consegui enxugar agora");
+  }
+}
+
+function voltarCompleto() {
+  if (!redator.completo) return;
+  redator.paras = redator.completo;
+  redator.completo = null;
+  redator.trads = {};
+  redator.marcados.clear();
+  renderRed();
 }
 
 // Traduz UM paragrafo pelo idioma que estiver escolhido la em cima, usando o
@@ -891,6 +979,7 @@ sel.addEventListener("change", () => { redator.trads = {}; if (redator.paras.len
 
 document.querySelectorAll("#tons button").forEach(b => b.classList.toggle("on", b.dataset.t === redator.tom));
 dicaTom();
+pintarEnxuga();
 abrirTela(localStorage.getItem("cru_tela") || "traduzir");
 
 // ── versao nova chega sozinha ─────────────────────────────────────────────
@@ -899,7 +988,7 @@ abrirTela(localStorage.getItem("cru_tela") || "traduzir");
 // sozinho nem com a publicacao feita. Agora ele pergunta a versao toda vez que
 // volta pra frente e se atualiza. Se tiver texto na tela, ele nao toma a decisao
 // pelo Rodrigo: mostra o botao e espera o toque.
-const VERSAO = "12";
+const VERSAO = "13";
 
 function trabalhoEmAndamento() {
   return !!(input.value.trim() || fala.value.trim() || redator.paras.length || redator.editando !== null);
