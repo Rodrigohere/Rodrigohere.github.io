@@ -161,11 +161,20 @@
   .tons button + button { border-left:2px solid #e7e5e4; }
   .tons button.on { background:#1c1917; color:#fffbeb; }
   .texto-card { margin-top:18px; border:4px solid #1c1917; background:#fff; padding:16px 16px 0; }
-  .para { font-size:17px; line-height:1.55; white-space:pre-wrap; word-break:break-word; padding-bottom:16px; }
-  .para-acoes + .para, .para-tr + .para { border-top:2px dotted #e7e5e4; padding-top:16px; }
+  .bloco { display:flex; gap:11px; align-items:flex-start; }
+  .bloco + .bloco, .para-acoes + .bloco, .para-tr + .bloco { border-top:2px dotted #e7e5e4; padding-top:16px; }
+  .caixa {
+    flex-shrink:0; width:27px; height:27px; border:3px solid #1c1917; background:#fff;
+    font-size:15px; font-weight:900; color:transparent; line-height:21px; text-align:center; padding:0;
+  }
+  .caixa.on { background:#1c1917; color:#fffbeb; }
+  .caixa:active { transform:translateY(1px); }
+  .para { font-size:17px; line-height:1.55; white-space:pre-wrap; word-break:break-word; padding-bottom:16px; flex:1; }
+  .bloco.marcado .para { font-weight:600; }
   .para:active { opacity:.45; }
   .acoes { display:flex; align-items:center; gap:12px; margin-top:12px; flex-wrap:wrap; }
   .copybtn.dark { background:#1c1917; color:#fffbeb; margin-top:0; }
+  .copybtn.red { background:#b91c1c; color:#fffbeb; margin-top:0; }
   .toast { position:fixed; left:50%; transform:translateX(-50%); bottom:26px; background:#1c1917; color:#fffbeb; font-weight:900; text-transform:uppercase; letter-spacing:1px; font-size:12px; padding:11px 18px; z-index:60; }
   .hidden { display:none !important; }
 </style>
@@ -616,6 +625,7 @@ function soOTexto(cru) {
 const redator = {
   tom: localStorage.getItem("cru_tom") || "natural",
   paras: [],
+  marcados: new Set(),
   bruto: "",
   trads: {},
   hist: JSON.parse(localStorage.getItem("cru_red_hist") || "[]")
@@ -686,6 +696,7 @@ async function organizar() {
     redator.bruto = bruto;
     redator.paras = texto.split(/\n{2,}/).map(x => x.trim()).filter(Boolean);
     redator.trads = {};
+    redator.marcados.clear();
     redator.hist = [{ bruto, tom: redator.tom }, ...redator.hist.filter(h => h.bruto !== bruto)].slice(0, 15);
     localStorage.setItem("cru_red_hist", JSON.stringify(redator.hist));
     $("loading2").classList.add("hidden");
@@ -702,12 +713,17 @@ function renderRed() {
   const res = $("res2");
   if (!redator.paras.length) { res.innerHTML = ""; return; }
   const bandeira = (LANGS.find(x => x[0] === state.target) || [,,"🌐"])[2];
+  const marcados = () => redator.paras.map((t, i) => i).filter(i => redator.marcados.has(i));
   res.innerHTML = `
     <div class="texto-card">
       ${redator.paras.map((t, i) => {
         const tr = redator.trads[i];
+        const on = redator.marcados.has(i);
         return `
-        <div class="para" data-i="${i}">${esc(t)}</div>
+        <div class="bloco ${on ? "marcado" : ""}">
+          <button class="caixa ${on ? "on" : ""}" data-i="${i}">✓</button>
+          <div class="para" data-i="${i}">${esc(t)}</div>
+        </div>
         <div class="para-acoes">
           <button class="mini cpp" data-i="${i}">copiar</button>
           <button class="mini red trp" data-i="${i}">${bandeira} traduzir</button>
@@ -721,11 +737,21 @@ function renderRed() {
     </div>
     <div class="acoes">
       <button class="copybtn dark" id="cpall">Copiar tudo</button>
+      ${marcados().length ? `<button class="copybtn red" id="cpmarc">Copiar ${marcados().length} marcado${marcados().length > 1 ? "s" : ""}</button>
+        <button class="linkbtn" id="desmarca">desmarcar</button>` : ""}
       <button class="linkbtn" id="refaz">refazer</button>
-    </div>`;
+    </div>
+    <div class="hint">${marcados().length
+      ? "→ vão colados num texto só, com linha em branco entre eles"
+      : "→ toca no parágrafo pra marcar e juntar vários num texto só"}</div>`;
 
-  res.querySelectorAll(".para").forEach(el => el.onclick = () => {
-    copiar(redator.paras[+el.dataset.i]); toast("parágrafo copiado ✓");
+  // Tocar no texto MARCA (é o gesto grande e fácil). Copiar um sozinho continua
+  // no botao de copiar, que nao marca nada.
+  res.querySelectorAll(".para, .caixa").forEach(el => el.onclick = (e) => {
+    e.stopPropagation();
+    const i = +el.dataset.i;
+    if (redator.marcados.has(i)) redator.marcados.delete(i); else redator.marcados.add(i);
+    renderRed();
   });
   res.querySelectorAll(".cpp").forEach(b => b.onclick = (e) => {
     e.stopPropagation(); copiar(redator.paras[+b.dataset.i]); toast("copiado ✓");
@@ -734,7 +760,19 @@ function renderRed() {
     e.stopPropagation(); copiar(redator.trads[+b.dataset.i].texto); toast("copiado ✓");
   });
   res.querySelectorAll(".trp").forEach(b => b.onclick = (e) => { e.stopPropagation(); traduzirPara(+b.dataset.i, b); });
-  $("cpall").onclick = () => { copiar(redator.paras.join("\n\n")); toast("texto todo copiado ✓"); };
+
+  // Linha em branco entre um paragrafo e outro: e isso que faz o texto chegar
+  // arejado do outro lado, em vez de virar um bloco so no zap.
+  const juntar = (is) => is.map(i => redator.paras[i]).join("\n\n");
+  $("cpall").onclick = () => { copiar(juntar(redator.paras.map((t, i) => i))); toast("texto todo copiado ✓"); };
+  const cm = $("cpmarc");
+  if (cm) cm.onclick = () => {
+    const is = marcados();
+    copiar(juntar(is));
+    toast(is.length + (is.length > 1 ? " parágrafos copiados ✓" : " parágrafo copiado ✓"));
+  };
+  const dm = $("desmarca");
+  if (dm) dm.onclick = () => { redator.marcados.clear(); renderRed(); };
   $("refaz").onclick = () => organizar();
   renderHistRed();
 }
