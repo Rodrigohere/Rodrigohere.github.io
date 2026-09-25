@@ -168,6 +168,10 @@
     font-size:15px; font-weight:900; color:transparent; line-height:21px; text-align:center; padding:0;
   }
   .caixa.on { background:#1c1917; color:#fffbeb; }
+  .edita {
+    width:100%; border:3px solid #1c1917; background:#fff; padding:11px; font-size:16px;
+    font-family:inherit; line-height:1.5; outline:none; resize:vertical; min-height:110px;
+  }
   .caixa:active { transform:translateY(1px); }
   .para { font-size:17px; line-height:1.55; white-space:pre-wrap; word-break:break-word; padding-bottom:16px; flex:1; }
   .bloco.marcado .para { font-weight:600; }
@@ -574,7 +578,9 @@ const TOM_DICA = {
 function textoPrompt(bruto, tom) {
   return `Você organiza em português brasileiro um texto que a pessoa acabou de FALAR no microfone. Ele chega cru: sem pontuação, com repetição, com "é", "tipo", "assim", e com erro de reconhecimento de voz.
 
-SUA TAREFA: devolver o MESMO recado, arrumado e pronto pra colar. Você NÃO inventa informação, NÃO acrescenta saudação, despedida, oferta ou dado que ele não falou, e NÃO resume a ponto de perder conteúdo. Conserte pelo contexto o que o reconhecimento de voz entendeu errado. Tire os vícios de fala e a repetição. Mantenha a voz dele: é uma pessoa falando, não um robô.
+SUA TAREFA: devolver o MESMO recado, arrumado e pronto pra colar. Você NÃO inventa informação, NÃO acrescenta saudação, despedida, oferta ou dado que ele não falou, e NÃO resume a ponto de perder conteúdo. Tire os vícios de fala e a repetição. Mantenha a voz dele: é uma pessoa falando, não um robô.
+
+CONSERTO PELO CONTEXTO, a parte mais importante do seu trabalho: o ditado troca palavras por outras parecidas no som. Leia o texto inteiro antes, entenda o assunto, e onde uma palavra NÃO FAZ SENTIDO no assunto, ela está errada: troque pela que faz sentido ali. "pão investidor" é "plano de investidor". "sédula" é "cédula". "carne de identidade" é "carteira de identidade". "a gente da imobiliária" pode ser "o agente da imobiliária". Não deixe passar nenhuma palavra sem sentido, mesmo que a frase pareça funcionar. Na dúvida entre duas leituras, fica com a que combina com o resto do texto. O que você NÃO pode é usar isso pra mudar o que ele disse: conserte a palavra, nunca a informação.
 
 PARÁGRAFOS: quebre em parágrafos separados por uma linha em branco, de tamanhos diferentes e naturais. Um parágrafo pode ter uma frase só quando o assunto é curto, outro pode ter três ou quatro. Assunto novo começa parágrafo novo. Nunca devolva um bloco único.
 
@@ -626,6 +632,7 @@ const redator = {
   tom: localStorage.getItem("cru_tom") || "natural",
   paras: [],
   marcados: new Set(),
+  editando: null,
   bruto: "",
   trads: {},
   hist: JSON.parse(localStorage.getItem("cru_red_hist") || "[]")
@@ -691,12 +698,13 @@ async function organizar() {
   $("loading2").classList.remove("hidden");
   org.disabled = true;
   try {
-    const cru = await pedir(textoPrompt(bruto, redator.tom), true);
+    const cru = await pedir(textoPrompt(bruto, redator.tom));
     const texto = arrumaTexto(soOTexto(cru), redator.tom);
     redator.bruto = bruto;
     redator.paras = texto.split(/\n{2,}/).map(x => x.trim()).filter(Boolean);
     redator.trads = {};
     redator.marcados.clear();
+    redator.editando = null;
     redator.hist = [{ bruto, tom: redator.tom }, ...redator.hist.filter(h => h.bruto !== bruto)].slice(0, 15);
     localStorage.setItem("cru_red_hist", JSON.stringify(redator.hist));
     $("loading2").classList.add("hidden");
@@ -719,6 +727,12 @@ function renderRed() {
       ${redator.paras.map((t, i) => {
         const tr = redator.trads[i];
         const on = redator.marcados.has(i);
+        if (redator.editando === i) return `
+        <div class="bloco"><textarea class="edita" id="ed${i}">${esc(t)}</textarea></div>
+        <div class="para-acoes">
+          <button class="mini salvap" data-i="${i}">salvar</button>
+          <button class="mini cancelap">cancelar</button>
+        </div>`;
         return `
         <div class="bloco ${on ? "marcado" : ""}">
           <button class="caixa ${on ? "on" : ""}" data-i="${i}">✓</button>
@@ -726,6 +740,7 @@ function renderRed() {
         </div>
         <div class="para-acoes">
           <button class="mini cpp" data-i="${i}">copiar</button>
+          <button class="mini edp" data-i="${i}">editar</button>
           <button class="mini red trp" data-i="${i}">${bandeira} traduzir</button>
         </div>
         ${tr ? `<div class="para-tr">
@@ -760,6 +775,33 @@ function renderRed() {
     e.stopPropagation(); copiar(redator.trads[+b.dataset.i].texto); toast("copiado ✓");
   });
   res.querySelectorAll(".trp").forEach(b => b.onclick = (e) => { e.stopPropagation(); traduzirPara(+b.dataset.i, b); });
+
+  // Editar um paragrafo na mao: salvar com o campo vazio APAGA o paragrafo, que
+  // e o jeito mais curto de tirar do texto um pedaco que nao serve.
+  res.querySelectorAll(".edp").forEach(b => b.onclick = (e) => {
+    e.stopPropagation();
+    redator.editando = +b.dataset.i;
+    renderRed();
+    const ta = $("ed" + b.dataset.i);
+    if (ta) { ta.focus(); ta.style.height = (ta.scrollHeight + 4) + "px"; ta.setSelectionRange(ta.value.length, ta.value.length); }
+  });
+  res.querySelectorAll(".salvap").forEach(b => b.onclick = () => {
+    const i = +b.dataset.i;
+    const novo = ($("ed" + i) ? $("ed" + i).value : "").trim();
+    redator.editando = null;
+    if (!novo) {
+      redator.paras.splice(i, 1);
+      redator.marcados.clear();
+      redator.trads = {};
+      renderRed();
+      return toast("parágrafo apagado ✓");
+    }
+    redator.paras[i] = novo;
+    delete redator.trads[i];          // traducao velha nao vale mais pro texto novo
+    renderRed();
+    toast("parágrafo salvo ✓");
+  });
+  res.querySelectorAll(".cancelap").forEach(b => b.onclick = () => { redator.editando = null; renderRed(); });
 
   // Linha em branco entre um paragrafo e outro: e isso que faz o texto chegar
   // arejado do outro lado, em vez de virar um bloco so no zap.

@@ -1,4 +1,4 @@
-const CACHE = "cru-v9";  // v9: marcar paragrafos e copiar juntos com linha em branco
+const CACHE = "cru-v10";  // v10: conserta palavra pelo contexto e edita paragrafo
 const SHELL = ["/", "/index.html", "/manifest.json", "/icon-180.png", "/icon-512.png"];
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
