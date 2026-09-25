@@ -1,4 +1,4 @@
-const CACHE = "cru-v3";  // v3: botao de ouvir a pronuncia
+const CACHE = "cru-v4";  // v4: funcao ESCREVER (ditado + tons) e botao de limpar
 const SHELL = ["/", "/index.html", "/manifest.json", "/icon-180.png", "/icon-512.png"];
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

@@ -1,7 +1,7 @@
 {
   "name": "CRU - Tradutor sem filtro",
   "short_name": "CRU",
-  "description": "Tradutor cultural que nao higieniza. Intencao atravessa.",
+  "description": "Tradutor cru e redator por voz. Intencao atravessa, travessao nunca.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#fffbeb",

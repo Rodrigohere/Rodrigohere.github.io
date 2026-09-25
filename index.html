@@ -33,7 +33,7 @@
   select {
     background:#1c1917; color:#fffbeb; font-size:13px; font-weight:700;
     padding:8px 10px; border:2px solid #1c1917; border-radius:0;
-    -webkit-appearance:none; appearance:none; max-width:46vw;
+    -webkit-appearance:none; appearance:none; max-width:34vw;
   }
   main { padding:14px 14px 60px; max-width:640px; margin:0 auto; }
   .box { border:4px solid #1c1917; background:#fff; }
@@ -133,6 +133,43 @@
   }
   .panel .go { width:100%; margin-top:12px; padding:12px; font-size:14px; }
   .panel .linkbtn { margin-top:10px; }
+  /* ── ESCREVER: a segunda funcao do app ── */
+  .troca {
+    background:#b91c1c; color:#fffbeb; font-size:12px; font-weight:900;
+    text-transform:uppercase; letter-spacing:1px; padding:9px 11px;
+    border:2px solid #b91c1c; white-space:nowrap; flex-shrink:0;
+  }
+  .troca:active { transform:translateY(1px); }
+  .limpa {
+    font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:1px;
+    background:transparent; border:2px solid #d6d3d1; color:#78716c; padding:6px 10px;
+  }
+  .limpa:active { transform:translateY(1px); }
+  .para-acoes { display:flex; gap:8px; flex-wrap:wrap; margin:-6px 0 16px; }
+  .mini {
+    font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:1px;
+    background:transparent; border:2px solid #1c1917; color:#1c1917; padding:5px 9px;
+  }
+  .mini.red { border-color:#b91c1c; color:#b91c1c; }
+  .mini:active { transform:translateY(1px); }
+  .para-tr { background:#1c1917; color:#fffbeb; padding:12px 14px; margin:0 0 16px; }
+  .para-tr .t { font-size:16px; font-weight:700; line-height:1.4; word-break:break-word; }
+  .para-tr .l { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:2px; color:rgba(255,251,235,.5); margin-bottom:5px; }
+  .mic { background:#1c1917; color:#fffbeb; font-weight:900; text-transform:uppercase; letter-spacing:1px; font-size:13px; padding:9px 14px; border:none; }
+  .mic.on { background:#b91c1c; animation:mp 1s infinite; }
+  .mic:active { transform:translateY(1px); }
+  @keyframes mp { 50% { opacity:.5; } }
+  .tons { display:flex; margin-top:12px; border:4px solid #1c1917; }
+  .tons button { flex:1; font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:1px; padding:11px 4px; border:none; background:#fff; color:#a8a29e; }
+  .tons button + button { border-left:2px solid #e7e5e4; }
+  .tons button.on { background:#1c1917; color:#fffbeb; }
+  .texto-card { margin-top:18px; border:4px solid #1c1917; background:#fff; padding:16px 16px 0; }
+  .para { font-size:17px; line-height:1.55; white-space:pre-wrap; word-break:break-word; padding-bottom:16px; }
+  .para-acoes + .para, .para-tr + .para { border-top:2px dotted #e7e5e4; padding-top:16px; }
+  .para:active { opacity:.45; }
+  .acoes { display:flex; align-items:center; gap:12px; margin-top:12px; flex-wrap:wrap; }
+  .copybtn.dark { background:#1c1917; color:#fffbeb; margin-top:0; }
+  .toast { position:fixed; left:50%; transform:translateX(-50%); bottom:26px; background:#1c1917; color:#fffbeb; font-weight:900; text-transform:uppercase; letter-spacing:1px; font-size:12px; padding:11px 18px; z-index:60; }
   .hidden { display:none !important; }
 </style>
 </head>
@@ -140,14 +177,16 @@
 <header>
   <div>
     <h1>CRU<span class="dot">.</span></h1>
-    <div class="sub">tradutor sem filtro</div>
+    <div class="sub" id="sub">tradutor sem filtro</div>
   </div>
   <div style="display:flex;align-items:center;gap:6px;">
     <select id="lang"></select>
+    <button class="troca" id="troca">✍️ escrever</button>
   </div>
 </header>
 
 <main>
+<section id="view-traduzir">
   <div class="box">
     <textarea id="input" rows="3" placeholder="Escreve do teu jeito. Palavrão, gíria, ironia, tudo passa."></textarea>
     <div class="bar">
@@ -156,7 +195,10 @@
         <button data-m="frase">frase</button>
         <button data-m="palavra">palavra</button>
       </div>
-      <button class="go" id="go" disabled>Traduzir</button>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button class="limpa hidden" id="limpa">✕ limpar</button>
+        <button class="go" id="go" disabled>Traduzir</button>
+      </div>
     </div>
   </div>
   <div class="hint hidden" id="hint"></div>
@@ -167,9 +209,36 @@
     <div class="sub-label grey" style="margin-bottom:6px;">histórico</div>
     <div id="histlist"></div>
   </div>
+</section>
+
+<section id="view-escrever" class="hidden">
+  <div class="box">
+    <textarea id="fala" rows="4" placeholder="Toca no microfone e fala do teu jeito. Ou escreve aqui mesmo."></textarea>
+    <div class="bar">
+      <button class="mic hidden" id="mic">🎙 Falar</button>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button class="limpa hidden" id="limpa2">✕ limpar</button>
+        <button class="go" id="org" disabled>Organizar</button>
+      </div>
+    </div>
+  </div>
+  <div class="tons" id="tons">
+    <button data-t="formal">formal</button>
+    <button data-t="natural" class="on">natural</button>
+    <button data-t="solto">solto</button>
+  </div>
+  <div class="hint" id="dicatom"></div>
+  <div class="err hidden" id="err2"></div>
+  <div class="loading hidden" id="loading2"><span class="pulse"></span> arrumando o que você falou...</div>
+  <div id="res2"></div>
+  <div class="hist hidden" id="hist2">
+    <div class="sub-label grey" style="margin-bottom:6px;">falas anteriores</div>
+    <div id="histlist2"></div>
+  </div>
+</section>
 </main>
 
-<footer>cultura não se traduz. intenção atravessa.</footer>
+<footer id="rodape">cultura não se traduz. intenção atravessa.</footer>
 
 
 <script>
@@ -308,7 +377,7 @@ Responda SOMENTE com JSON válido, sem markdown:
 // pede e nao sabe de chave: so manda o texto e recebe a traducao.
 const CANO = "https://www.otimizi.com/api/cru/traduzir";
 
-async function callClaude(prompt) {
+async function pedir(prompt) {
   const res = await fetch(CANO, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -318,7 +387,11 @@ async function callClaude(prompt) {
   if (!res.ok) throw new Error("API " + res.status);
   const data = await res.json();
   if (data.erro) throw new Error(data.erro);
-  return JSON.parse(String(data.texto || "").replace(/```json|```/g,"").trim());
+  return String(data.texto || "").replace(/```json|```/g, "").trim();
+}
+
+async function callClaude(prompt) {
+  return JSON.parse(await pedir(prompt));
 }
 
 // UI
@@ -473,6 +546,313 @@ function renderHist() {
 }
 
 if (state.hist.length) { state.result = state.hist[0]; render(); input.value = state.result.original; input.dispatchEvent(new Event("input")); }
+
+
+// ── ESCREVER ───────────────────────────────────────────────────────────────
+// Rodrigo 25/09/2026: segunda funcao do app, que nao traduz nada. Ele FALA no
+// microfone e o texto volta arrumado em paragrafos, pronto pra colar. Tres tons:
+// atendimento ao cliente, zap normal e zap descolado. Travessao nunca sai daqui:
+// e a digital da IA, quem le sabe na hora que nao foi pessoa que escreveu.
+
+const TOM_REGRA = {
+  formal: `ATENDIMENTO AO CLIENTE. Português correto e educado, tratando por você, com pontuação completa. Direto e respeitoso, sem palavra rebuscada, sem frase feita de empresa, sem gíria e sem abreviação. Frases curtas. Parágrafos um pouco mais longos que nos outros tons, mas nunca um bloco só.`,
+  natural: `CONVERSA DE WHATSAPP NORMAL. Do jeito que ele fala com alguém que já conhece, só que organizado e escrito certo. Frases curtas, pontuação simples de vírgula e ponto, gíria leve se ele usou. Sem formalidade de empresa e sem abreviação forçada. Parágrafos curtos, do tamanho de uma mensagem de zap.`,
+  solto: `WHATSAPP DESCOLADO E RÁPIDO, digitando correndo pra um amigo. Use as abreviações naturais do zap quando couber (pq, vc, tb, td, blz, pfv, msg, qnd, tá, né, cê). Pontuação: VÍRGULA no máximo, com ? ou ! só quando a frase pedir de verdade. NADA de ponto final, nada de dois pontos, nada de ponto e vírgula. Pode começar frase em minúscula. Parágrafos bem curtos, um ou dois de uma linha só.`
+};
+const TOM_DICA = {
+  formal: "→ atendimento ao cliente: educado, correto e direto",
+  natural: "→ whatsapp normal: do teu jeito, só que arrumado",
+  solto: "→ whatsapp descolado: abreviação, vírgula e sem ponto"
+};
+
+function textoPrompt(bruto, tom) {
+  return `Você organiza em português brasileiro um texto que a pessoa acabou de FALAR no microfone. Ele chega cru: sem pontuação, com repetição, com "é", "tipo", "assim", e com erro de reconhecimento de voz.
+
+SUA TAREFA: devolver o MESMO recado, arrumado e pronto pra colar. Você NÃO inventa informação, NÃO acrescenta saudação, despedida, oferta ou dado que ele não falou, e NÃO resume a ponto de perder conteúdo. Conserte pelo contexto o que o reconhecimento de voz entendeu errado. Tire os vícios de fala e a repetição. Mantenha a voz dele: é uma pessoa falando, não um robô.
+
+PARÁGRAFOS: quebre em parágrafos separados por uma linha em branco, de tamanhos diferentes e naturais. Um parágrafo pode ter uma frase só quando o assunto é curto, outro pode ter três ou quatro. Assunto novo começa parágrafo novo. Nunca devolva um bloco único.
+
+PROIBIDO EM QUALQUER TOM: travessão e hífen fazendo papel de pontuação. Onde ele apareceria, use vírgula, ponto ou frase nova. Proibido também emoji, bullet, título, asterisco, negrito, aspas decorativas, e frase de robô do tipo "espero que esteja bem" ou "fico à disposição para maiores esclarecimentos" se ele não falou nada parecido.
+
+TOM: ${TOM_REGRA[tom] || TOM_REGRA.natural}
+
+TEXTO FALADO:
+"""${bruto}"""
+
+Responda SOMENTE com JSON válido, sem markdown, sem texto antes ou depois:
+{"texto":"o texto arrumado, com os parágrafos separados por \\n\\n"}`;
+}
+
+// Cinto de seguranca: mesmo mandado, as vezes escapa um travessao ou um ponto
+// no tom solto. Aqui nao escapa.
+function arrumaTexto(t, tom) {
+  let s = String(t || "").replace(/\r/g, "");
+  s = s.replace(/\s*[—–]\s*/g, ", ");
+  s = s.replace(/(\S)\s+-\s+(\S)/g, "$1, $2");
+  s = s.replace(/[“”«»]/g, "");
+  s = s.replace(/[‘’]/g, "'");
+  s = s.replace(/\*+/g, "");
+  s = s.replace(/^\s*[•·]\s*/gm, "");
+  if (tom === "solto") {
+    s = s.replace(/(\d):(\d)/g, "$1\u0000$2");
+    s = s.replace(/\s*:\s*/g, ", ");
+    s = s.replace(/\u0000/g, ":");
+    s = s.replace(/;/g, ",");
+    s = s.replace(/\.{1,3}(?=\s|$)/g, "");
+  }
+  s = s.replace(/,\s*,/g, ",");
+  s = s.replace(/[ \t]{2,}/g, " ");
+  s = s.replace(/[ \t]+\n/g, "\n");
+  s = s.replace(/\n{3,}/g, "\n\n");
+  return s.trim();
+}
+
+// Se a resposta vier cortada ou fora do JSON, aproveita o que der em vez de
+// jogar fora e mandar ele falar tudo de novo.
+function soOTexto(cru) {
+  try { const o = JSON.parse(cru); if (o && o.texto) return o.texto; } catch {}
+  const m = String(cru).match(/"texto"\s*:\s*"([\s\S]*?)"?\s*\}?\s*$/);
+  if (m) return m[1].replace(/\\n/g, "\n").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+  return String(cru).trim();
+}
+
+const redator = {
+  tom: localStorage.getItem("cru_tom") || "natural",
+  paras: [],
+  bruto: "",
+  trads: {},
+  hist: JSON.parse(localStorage.getItem("cru_red_hist") || "[]")
+};
+
+const fala = $("fala"), mic = $("mic"), org = $("org");
+
+function toast(msg) {
+  const d = document.createElement("div");
+  d.className = "toast";
+  d.textContent = msg;
+  document.body.appendChild(d);
+  setTimeout(() => d.remove(), 1500);
+}
+
+// ── microfone ──────────────────────────────────────────────────────────────
+// O iPhone corta o reconhecimento sozinho a cada poucos segundos: por isso ele
+// religa no onend enquanto o botao estiver aceso.
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null, ouvindo = false, base = "", pedaco = "";
+
+if (SR) mic.classList.remove("hidden");
+
+function ligarMic() {
+  if (!SR) return;
+  rec = new SR();
+  rec.lang = "pt-BR";
+  rec.continuous = true;
+  rec.interimResults = true;
+  base = fala.value ? fala.value.trim() + " " : "";
+  pedaco = "";
+  rec.onresult = (e) => {
+    let vindo = "";
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) pedaco += t + " "; else vindo += t;
+    }
+    fala.value = (base + pedaco + vindo).replace(/\s{2,}/g, " ").trimStart();
+    fala.dispatchEvent(new Event("input"));
+  };
+  rec.onerror = (e) => {
+    if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+      pararMic();
+      erroEsc("o navegador não liberou o microfone. libera nos ajustes do aparelho, ou usa o microfone do próprio teclado e escreve aqui");
+    }
+  };
+  rec.onend = () => {
+    if (!ouvindo) return;
+    base = fala.value ? fala.value.trim() + " " : "";
+    pedaco = "";
+    try { rec.start(); } catch {}
+  };
+  ouvindo = true;
+  mic.classList.add("on");
+  mic.textContent = "⏹ Parar";
+  try { rec.start(); } catch {}
+}
+
+function pararMic() {
+  ouvindo = false;
+  mic.classList.remove("on");
+  mic.textContent = "🎙 Falar";
+  try { if (rec) rec.stop(); } catch {}
+}
+
+if (SR) mic.onclick = () => (ouvindo ? pararMic() : ligarMic());
+
+// ── tela de escrever ───────────────────────────────────────────────────────
+function dicaTom() { $("dicatom").textContent = TOM_DICA[redator.tom]; }
+
+fala.addEventListener("input", () => {
+  org.disabled = !fala.value.trim();
+  $("limpa2").classList.toggle("hidden", !fala.value.trim());
+});
+
+$("limpa2").onclick = () => {
+  if (ouvindo) pararMic();
+  fala.value = "";
+  fala.dispatchEvent(new Event("input"));
+  fala.focus();
+};
+
+$("tons").addEventListener("click", (e) => {
+  const t = e.target.dataset.t;
+  if (!t) return;
+  redator.tom = t;
+  localStorage.setItem("cru_tom", t);
+  document.querySelectorAll("#tons button").forEach(b => b.classList.toggle("on", b.dataset.t === t));
+  dicaTom();
+  if (redator.bruto) organizar();   // trocou o tom com texto na tela: refaz na hora
+});
+
+function erroEsc(msg) {
+  $("loading2").classList.add("hidden");
+  const el = $("err2");
+  el.classList.remove("hidden");
+  el.textContent = msg;
+}
+
+async function organizar() {
+  const bruto = fala.value.trim();
+  if (!bruto) return;
+  if (ouvindo) pararMic();
+  if (bruto.length > 4000) return erroEsc("falou demais de uma vez. corta em duas partes e manda de novo");
+  $("err2").classList.add("hidden");
+  $("res2").innerHTML = "";
+  $("loading2").classList.remove("hidden");
+  org.disabled = true;
+  try {
+    const cru = await pedir(textoPrompt(bruto, redator.tom));
+    const texto = arrumaTexto(soOTexto(cru), redator.tom);
+    redator.bruto = bruto;
+    redator.paras = texto.split(/\n{2,}/).map(x => x.trim()).filter(Boolean);
+    redator.trads = {};
+    redator.hist = [{ bruto, tom: redator.tom }, ...redator.hist.filter(h => h.bruto !== bruto)].slice(0, 15);
+    localStorage.setItem("cru_red_hist", JSON.stringify(redator.hist));
+    $("loading2").classList.add("hidden");
+    renderRed();
+  } catch (e) {
+    erroEsc(e.message === "MUITO"
+      ? "muita coisa de uma vez. espera um minutinho e manda de novo"
+      : "deu ruim aqui. tenta de novo");
+  } finally { org.disabled = !fala.value.trim(); }
+}
+org.onclick = organizar;
+
+function renderRed() {
+  const res = $("res2");
+  if (!redator.paras.length) { res.innerHTML = ""; return; }
+  const bandeira = (LANGS.find(x => x[0] === state.target) || [,,"🌐"])[2];
+  res.innerHTML = `
+    <div class="texto-card">
+      ${redator.paras.map((t, i) => {
+        const tr = redator.trads[i];
+        return `
+        <div class="para" data-i="${i}">${esc(t)}</div>
+        <div class="para-acoes">
+          <button class="mini cpp" data-i="${i}">copiar</button>
+          <button class="mini red trp" data-i="${i}">${bandeira} traduzir</button>
+        </div>
+        ${tr ? `<div class="para-tr">
+            <div class="l">${esc(tr.lang)}</div>
+            <div class="t">${esc(tr.texto)}</div>
+            <button class="mini cptr" data-i="${i}" style="border-color:#fffbeb;color:#fffbeb;margin-top:10px;">copiar tradução</button>
+          </div>` : ""}`;
+      }).join("")}
+    </div>
+    <div class="acoes">
+      <button class="copybtn dark" id="cpall">Copiar tudo</button>
+      <button class="linkbtn" id="refaz">refazer</button>
+    </div>`;
+
+  res.querySelectorAll(".para").forEach(el => el.onclick = () => {
+    copiar(redator.paras[+el.dataset.i]); toast("parágrafo copiado ✓");
+  });
+  res.querySelectorAll(".cpp").forEach(b => b.onclick = (e) => {
+    e.stopPropagation(); copiar(redator.paras[+b.dataset.i]); toast("copiado ✓");
+  });
+  res.querySelectorAll(".cptr").forEach(b => b.onclick = (e) => {
+    e.stopPropagation(); copiar(redator.trads[+b.dataset.i].texto); toast("copiado ✓");
+  });
+  res.querySelectorAll(".trp").forEach(b => b.onclick = (e) => { e.stopPropagation(); traduzirPara(+b.dataset.i, b); });
+  $("cpall").onclick = () => { copiar(redator.paras.join("\n\n")); toast("texto todo copiado ✓"); };
+  $("refaz").onclick = () => organizar();
+  renderHistRed();
+}
+
+// Traduz UM paragrafo pelo idioma que estiver escolhido la em cima, usando o
+// mesmo tradutor da outra tela. No tom formal ele pega a versao formal.
+async function traduzirPara(i, btn) {
+  const texto = redator.paras[i];
+  const alvo = state.target;
+  const antes = btn.textContent;
+  btn.textContent = "traduzindo...";
+  btn.disabled = true;
+  try {
+    const d = await callClaude(phrasePrompt(texto, alvo));
+    const escolhida = redator.tom === "formal" && d.formal ? d.formal : d.traducao;
+    redator.trads[i] = { texto: limpar(escolhida), lang: `pt → ${langName(alvo)}` };
+    renderRed();
+  } catch (e) {
+    btn.textContent = antes;
+    btn.disabled = false;
+    toast(e.message === "MUITO" ? "espera um minutinho" : "não deu pra traduzir");
+  }
+}
+
+function renderHistRed() {
+  const h = redator.hist;
+  if (h.length <= 1) return;
+  $("hist2").classList.remove("hidden");
+  $("histlist2").innerHTML = h.slice(1, 10).map((x, i) =>
+    `<button class="hist-item" data-i="${i + 1}">${esc(x.bruto)}</button>`).join("");
+  $("histlist2").querySelectorAll(".hist-item").forEach(b => b.onclick = () => {
+    fala.value = redator.hist[+b.dataset.i].bruto;
+    fala.dispatchEvent(new Event("input"));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+}
+
+async function copiar(t) { try { await navigator.clipboard.writeText(t); } catch {} }
+
+// ── trocar de funcao ───────────────────────────────────────────────────────
+function abrirTela(qual) {
+  const escrever = qual === "escrever";
+  $("view-traduzir").classList.toggle("hidden", escrever);
+  $("view-escrever").classList.toggle("hidden", !escrever);
+  $("troca").textContent = escrever ? "🌐 traduzir" : "✍️ escrever";
+  $("sub").textContent = escrever ? "você fala, ele arruma" : "tradutor sem filtro";
+  $("rodape").textContent = escrever
+    ? "você fala do teu jeito. ele só organiza."
+    : "cultura não se traduz. intenção atravessa.";
+  if (TEM_VOZ) speechSynthesis.cancel();
+  if (!escrever && ouvindo) pararMic();
+  localStorage.setItem("cru_tela", qual);
+  window.scrollTo({ top: 0 });
+}
+$("troca").onclick = () => abrirTela($("view-escrever").classList.contains("hidden") ? "escrever" : "traduzir");
+
+// limpar da tela de traduzir
+$("limpa").onclick = () => {
+  input.value = "";
+  input.dispatchEvent(new Event("input"));
+  input.focus();
+};
+input.addEventListener("input", () => $("limpa").classList.toggle("hidden", !input.value.trim()));
+
+// trocar de idioma la em cima invalida as traducoes ja mostradas aqui embaixo
+sel.addEventListener("change", () => { redator.trads = {}; if (redator.paras.length) renderRed(); });
+
+document.querySelectorAll("#tons button").forEach(b => b.classList.toggle("on", b.dataset.t === redator.tom));
+dicaTom();
+if (!SR) $("dicatom").textContent = TOM_DICA[redator.tom] + " · sem microfone neste navegador, usa o do teclado";
+abrirTela(localStorage.getItem("cru_tela") || "traduzir");
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});
 </script>
