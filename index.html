@@ -383,11 +383,11 @@ Responda SOMENTE com JSON válido, sem markdown:
 // pede e nao sabe de chave: so manda o texto e recebe a traducao.
 const CANO = "https://www.otimizi.com/api/cru/traduzir";
 
-async function pedir(prompt) {
+async function pedir(prompt, rapido) {
   const res = await fetch(CANO, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ prompt })
+    body: JSON.stringify({ prompt, rapido: !!rapido })
   });
   if (res.status === 429) throw new Error("MUITO");
   if (!res.ok) throw new Error("API " + res.status);
@@ -779,6 +779,7 @@ async function mandarPraOuvir() {
 
 async function transcrever(blob) {
   status("entendendo tudo o que você falou...", false, "escutando a gravação inteira");
+  const t = Date.now();
   const ext = /mp4|m4a/.test(blob.type) ? "m4a" : /ogg/.test(blob.type) ? "ogg" : "webm";
   try {
     const fd = new FormData();
@@ -790,7 +791,7 @@ async function transcrever(blob) {
     if (!texto) throw new Error("não entendi nada do áudio");
     fala.value = (fala.value ? fala.value.trim() + " " : "") + texto;
     fala.dispatchEvent(new Event("input"));
-    status(null);
+    status("ouvi em " + ((Date.now() - t) / 1000).toFixed(1) + "s, agora estou arrumando", false, "escrito");
     organizar();                   // ja entrega arrumado, sem ele apertar nada
   } catch (e) {
     status((e.message || "deu ruim") + ". o áudio não se perdeu, dá pra mandar de novo.", true, "não consegui transcrever");
@@ -852,7 +853,7 @@ async function organizar() {
   $("loading2").classList.remove("hidden");
   org.disabled = true;
   try {
-    const cru = await pedir(textoPrompt(bruto, redator.tom));
+    const cru = await pedir(textoPrompt(bruto, redator.tom), true);
     const texto = arrumaTexto(soOTexto(cru), redator.tom);
     redator.bruto = bruto;
     redator.paras = texto.split(/\n{2,}/).map(x => x.trim()).filter(Boolean);
@@ -860,6 +861,7 @@ async function organizar() {
     redator.hist = [{ bruto, tom: redator.tom }, ...redator.hist.filter(h => h.bruto !== bruto)].slice(0, 15);
     localStorage.setItem("cru_red_hist", JSON.stringify(redator.hist));
     $("loading2").classList.add("hidden");
+    status(null);
     renderRed();
   } catch (e) {
     erroEsc(e.message === "MUITO"
