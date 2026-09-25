@@ -179,6 +179,11 @@
   .acoes { display:flex; align-items:center; gap:12px; margin-top:12px; flex-wrap:wrap; }
   .copybtn.dark { background:#1c1917; color:#fffbeb; margin-top:0; }
   .copybtn.red { background:#b91c1c; color:#fffbeb; margin-top:0; }
+  .aviso-novo {
+    position:fixed; left:0; right:0; bottom:0; background:#b91c1c; color:#fffbeb;
+    font-weight:900; text-transform:uppercase; letter-spacing:1px; font-size:13px;
+    padding:14px; border:none; width:100%; z-index:70;
+  }
   .toast { position:fixed; left:50%; transform:translateX(-50%); bottom:26px; background:#1c1917; color:#fffbeb; font-weight:900; text-transform:uppercase; letter-spacing:1px; font-size:12px; padding:11px 18px; z-index:60; }
   .hidden { display:none !important; }
 </style>
@@ -887,6 +892,44 @@ sel.addEventListener("change", () => { redator.trads = {}; if (redator.paras.len
 document.querySelectorAll("#tons button").forEach(b => b.classList.toggle("on", b.dataset.t === redator.tom));
 dicaTom();
 abrirTela(localStorage.getItem("cru_tela") || "traduzir");
+
+// ── versao nova chega sozinha ─────────────────────────────────────────────
+// Rodrigo 25/09/2026 mandou a tela de um conserto que ja estava no ar ha uma
+// hora: no iPhone o app instalado fica vivo em memoria por dias e nao recarrega
+// sozinho nem com a publicacao feita. Agora ele pergunta a versao toda vez que
+// volta pra frente e se atualiza. Se tiver texto na tela, ele nao toma a decisao
+// pelo Rodrigo: mostra o botao e espera o toque.
+const VERSAO = "12";
+
+function trabalhoEmAndamento() {
+  return !!(input.value.trim() || fala.value.trim() || redator.paras.length || redator.editando !== null);
+}
+
+function mostrarBotaoAtualizar() {
+  if ($("avisonovo")) return;
+  const b = document.createElement("button");
+  b.className = "aviso-novo";
+  b.id = "avisonovo";
+  b.textContent = "⬆️ versão nova do CRU · toca pra atualizar";
+  b.onclick = () => location.reload();
+  document.body.appendChild(b);
+}
+
+async function conferirVersao() {
+  try {
+    const r = await fetch("/versao.json?x=" + Date.now(), { cache: "no-store" });
+    const v = String((await r.json()).v || "");
+    if (!v || v === VERSAO) return;
+    if (sessionStorage.getItem("cru_recarregou") === v) return;   // ja tentei, nao fico em laco
+    sessionStorage.setItem("cru_recarregou", v);
+    if (trabalhoEmAndamento()) return mostrarBotaoAtualizar();
+    location.reload();
+  } catch {}
+}
+
+document.addEventListener("visibilitychange", () => { if (!document.hidden) conferirVersao(); });
+window.addEventListener("focus", conferirVersao);
+conferirVersao();
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});
 </script>
