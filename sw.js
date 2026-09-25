@@ -1,4 +1,4 @@
-const CACHE = "cru-v5";  // v5: funcao ESCREVER (ditado + tons), limpar e traduzir paragrafo
+const CACHE = "cru-v6";  // v6: microfone grava tudo e transcreve no fim
 const SHELL = ["/", "/index.html", "/manifest.json", "/icon-180.png", "/icon-512.png"];
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
