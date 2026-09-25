@@ -155,10 +155,7 @@
   .para-tr { background:#1c1917; color:#fffbeb; padding:12px 14px; margin:0 0 16px; }
   .para-tr .t { font-size:16px; font-weight:700; line-height:1.4; word-break:break-word; }
   .para-tr .l { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:2px; color:rgba(255,251,235,.5); margin-bottom:5px; }
-  .mic { background:#1c1917; color:#fffbeb; font-weight:900; text-transform:uppercase; letter-spacing:1px; font-size:13px; padding:9px 14px; border:none; }
-  .mic.on { background:#b91c1c; animation:mp 1s infinite; }
-  .mic:active { transform:translateY(1px); }
-  @keyframes mp { 50% { opacity:.5; } }
+  .dita { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:#78716c; }
   .tons { display:flex; margin-top:12px; border:4px solid #1c1917; }
   .tons button { flex:1; font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:1px; padding:11px 4px; border:none; background:#fff; color:#a8a29e; }
   .tons button + button { border-left:2px solid #e7e5e4; }
@@ -169,11 +166,6 @@
   .para:active { opacity:.45; }
   .acoes { display:flex; align-items:center; gap:12px; margin-top:12px; flex-wrap:wrap; }
   .copybtn.dark { background:#1c1917; color:#fffbeb; margin-top:0; }
-  .micstatus { margin-top:10px; border:3px solid #1c1917; background:#fff; padding:10px 12px; font-size:13px; font-weight:700; line-height:1.4; }
-  .micstatus.ruim { border-color:#b91c1c; background:#fef2f2; color:#991b1b; }
-  .micstatus b { display:block; font-size:10px; text-transform:uppercase; letter-spacing:1px; color:#78716c; margin-bottom:3px; }
-  .barra { height:9px; background:#e7e5e4; margin:9px 0 7px; }
-  .barra i { display:block; height:100%; background:#b91c1c; width:2%; }
   .toast { position:fixed; left:50%; transform:translateX(-50%); bottom:26px; background:#1c1917; color:#fffbeb; font-weight:900; text-transform:uppercase; letter-spacing:1px; font-size:12px; padding:11px 18px; z-index:60; }
   .hidden { display:none !important; }
 </style>
@@ -218,16 +210,15 @@
 
 <section id="view-escrever" class="hidden">
   <div class="box">
-    <textarea id="fala" rows="4" placeholder="Aperta FALAR e fala à vontade. O texto vem escrito depois, de uma vez. Ou escreve aqui mesmo."></textarea>
+    <textarea id="fala" rows="4" placeholder="Toca aqui, aperta o 🎤 do teclado do teu iPhone e fala à vontade. Depois é só ORGANIZAR."></textarea>
     <div class="bar">
-      <button class="mic hidden" id="mic">🎙 Falar</button>
+      <div class="dita">🎤 dita pelo teclado</div>
       <div style="display:flex;align-items:center;gap:8px;">
         <button class="limpa hidden" id="limpa2">✕ limpar</button>
         <button class="go" id="org" disabled>Organizar</button>
       </div>
     </div>
   </div>
-  <div class="micstatus hidden" id="micstatus"></div>
   <div class="tons" id="tons">
     <button data-t="formal">formal</button>
     <button data-t="natural" class="on">natural</button>
@@ -630,7 +621,7 @@ const redator = {
   hist: JSON.parse(localStorage.getItem("cru_red_hist") || "[]")
 };
 
-const fala = $("fala"), mic = $("mic"), org = $("org");
+const fala = $("fala"), org = $("org");
 
 function toast(msg) {
   const d = document.createElement("div");
@@ -643,173 +634,12 @@ function toast(msg) {
 // ── microfone ──────────────────────────────────────────────────────────────
 // O iPhone corta o reconhecimento sozinho a cada poucos segundos: por isso ele
 // religa no onend enquanto o botao estiver aceso.
-// ── microfone: grava tudo e so entende no fim ─────────────────────────────
-// Rodrigo 25/09/2026: "e bom se tivesse um microfone igual o do Gemini, ele nao
-// tenta entender logo de primeira e nem mostra, vai escutando um monte de coisa
-// e no final ele usa uma estrelinha pra entender todo o contexto".
-//
-// O reconhecimento do proprio navegador fazia o contrario: adivinhava palavra
-// por palavra, mostrava errado na tela e no iPhone encerrava sozinho a cada
-// poucos segundos (foi o que travou o app). Agora ele so GRAVA. A fala inteira
-// vai de uma vez pro servidor e volta escrita, com o contexto todo na mao.
-const OUVIDO = "https://www.otimizi.com/api/cru/ouvir";
-const TEM_GRAVADOR = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
-const APP_INSTALADO = window.navigator.standalone === true
-  || (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches);
-const TETO_SEG = 300;   // 5 minutos, depois disso ele para sozinho
-
-let gravador = null, microfone = null, pedacos = [], ouvindo = false;
-let t0 = 0, tic = null, som = null, medidor = null, quadro = null, ultimoAudio = null;
-
-mic.classList.remove("hidden");
-
-function status(msg, ruim, titulo) {
-  const el = $("micstatus");
-  if (!msg) { el.classList.add("hidden"); return; }
-  el.classList.remove("hidden");
-  el.classList.toggle("ruim", !!ruim);
-  el.innerHTML = (titulo ? `<b>${esc(titulo)}</b>` : "") + esc(msg);
-}
-
-// O microfone do teclado do proprio iPhone funciona sempre, mesmo quando o do
-// navegador nao vai. Quando falha, e pra la que mando ele.
-function usaOTeclado(porque) {
-  pararMic();
-  status("toca dentro da caixa de texto, aperta o 🎤 do teclado do teu iPhone, fala, e depois é só apertar ORGANIZAR aqui.", true, porque);
-}
-
-const mmss = (s) => String(Math.floor(s / 60)) + ":" + String(s % 60).padStart(2, "0");
-
-function telaGravando() {
-  const el = $("micstatus");
-  el.classList.remove("hidden", "ruim");
-  el.innerHTML = '<b>gravando · <span id="relogio">0:00</span></b>'
-    + '<div class="barra"><i id="nivel"></i></div>'
-    + "fala à vontade. o texto não aparece agora, ele vem escrito de uma vez quando você apertar PARAR";
-}
-
-async function ligarMic() {
-  if (!TEM_GRAVADOR) return usaOTeclado("este navegador não grava áudio");
-  try {
-    microfone = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-    });
-  } catch (e) {
-    return usaOTeclado(APP_INSTALADO
-      ? "o app instalado não liberou o microfone. abre pelo Safari, ou:"
-      : "o aparelho não liberou o microfone pro navegador");
-  }
-  const tipo = ["audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg"]
-    .find(t => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t));
-  try {
-    gravador = new MediaRecorder(microfone, tipo ? { mimeType: tipo, audioBitsPerSecond: 32000 } : undefined);
-  } catch { return usaOTeclado("o gravador não abriu neste navegador"); }
-
-  pedacos = [];
-  gravador.ondataavailable = (e) => { if (e.data && e.data.size) pedacos.push(e.data); };
-  gravador.onstop = mandarPraOuvir;
-  gravador.start(1000);            // junta o audio de segundo em segundo
-
-  ouvindo = true;
-  t0 = Date.now();
-  mic.classList.add("on");
-  mic.textContent = "⏹ Parar";
-  telaGravando();
-  tic = setInterval(() => {
-    const seg = Math.floor((Date.now() - t0) / 1000);
-    const r = $("relogio");
-    if (r) r.textContent = mmss(seg);
-    if (seg >= TETO_SEG) { pararMic(); }
-  }, 500);
-  medirSom();
-}
-
-// A barrinha mexendo e o unico retorno enquanto ele fala: e o que mostra que o
-// aparelho esta mesmo escutando, sem chutar palavra na tela.
-function medirSom() {
-  try {
-    const AC = window.AudioContext || window.webkitAudioContext;
-    som = new AC();
-    const fonte = som.createMediaStreamSource(microfone);
-    medidor = som.createAnalyser();
-    medidor.fftSize = 256;
-    fonte.connect(medidor);
-    const dados = new Uint8Array(medidor.frequencyBinCount);
-    const passo = () => {
-      if (!ouvindo) return;
-      medidor.getByteFrequencyData(dados);
-      let soma = 0;
-      for (let i = 0; i < dados.length; i++) soma += dados[i];
-      const n = Math.min(100, Math.round((soma / dados.length) * 2.2) + 2);
-      const b = $("nivel");
-      if (b) b.style.width = n + "%";
-      quadro = requestAnimationFrame(passo);
-    };
-    passo();
-  } catch {}
-}
-
-function pararMic() {
-  const estava = ouvindo;
-  ouvindo = false;
-  clearInterval(tic);
-  if (quadro) cancelAnimationFrame(quadro);
-  mic.classList.remove("on");
-  mic.textContent = "🎙 Falar";
-  try { if (gravador && gravador.state !== "inactive") gravador.stop(); } catch {}
-  try { if (som) som.close(); } catch {}
-  som = null;
-  return estava;
-}
-
-function soltarMicrofone() {
-  try { if (microfone) microfone.getTracks().forEach(t => t.stop()); } catch {}
-  microfone = null;
-}
-
-async function mandarPraOuvir() {
-  soltarMicrofone();
-  const tipo = (gravador && gravador.mimeType) || "audio/mp4";
-  const blob = new Blob(pedacos, { type: tipo });
-  gravador = null;
-  if (blob.size < 2000) return status("não veio som nenhum. confere se o microfone está liberado", true, "ficou mudo");
-  ultimoAudio = blob;
-  await transcrever(blob);
-}
-
-async function transcrever(blob) {
-  status("entendendo tudo o que você falou...", false, "escutando a gravação inteira");
-  const t = Date.now();
-  const ext = /mp4|m4a/.test(blob.type) ? "m4a" : /ogg/.test(blob.type) ? "ogg" : "webm";
-  try {
-    const fd = new FormData();
-    fd.append("audio", blob, "fala." + ext);
-    const r = await fetch(OUVIDO, { method: "POST", body: fd });
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok || data.erro) throw new Error(data.erro || ("erro " + r.status));
-    const texto = String(data.texto || "").trim();
-    if (!texto) throw new Error("não entendi nada do áudio");
-    fala.value = (fala.value ? fala.value.trim() + " " : "") + texto;
-    fala.dispatchEvent(new Event("input"));
-    status("ouvi em " + ((Date.now() - t) / 1000).toFixed(1) + "s, agora estou arrumando", false, "escrito");
-    organizar();                   // ja entrega arrumado, sem ele apertar nada
-  } catch (e) {
-    status((e.message || "deu ruim") + ". o áudio não se perdeu, dá pra mandar de novo.", true, "não consegui transcrever");
-    const el = $("micstatus");
-    const b = document.createElement("button");
-    b.className = "mini";
-    b.style.marginTop = "8px";
-    b.textContent = "mandar de novo";
-    b.onclick = () => transcrever(ultimoAudio);
-    el.appendChild(document.createElement("br"));
-    el.appendChild(b);
-  }
-}
-
-mic.onclick = () => {
-  if (ouvindo) { pararMic(); status("parou. só um instante...", false, "gravação encerrada"); }
-  else ligarMic();
-};
+// Rodrigo 25/09/2026: "deixa pra la, eu vou usar o microfone do teclado". O app
+// ja teve reconhecimento ao vivo (travava o aplicativo) e gravador com transcricao
+// no servidor (dependia de uma chave que nao entrou). O ditado do proprio teclado
+// do iPhone nao depende de nada, nao custa nada e nunca falha: o app so recebe o
+// que ele ditou e arruma. O gravador fica no historico do git se voltar a fazer
+// sentido um dia.
 
 // ── tela de escrever ───────────────────────────────────────────────────────
 function dicaTom() { $("dicatom").textContent = TOM_DICA[redator.tom]; }
@@ -820,7 +650,6 @@ fala.addEventListener("input", () => {
 });
 
 $("limpa2").onclick = () => {
-  if (ouvindo) pararMic();
   fala.value = "";
   fala.dispatchEvent(new Event("input"));
   fala.focus();
@@ -846,7 +675,6 @@ function erroEsc(msg) {
 async function organizar() {
   const bruto = fala.value.trim();
   if (!bruto) return;
-  if (ouvindo) pararMic();
   if (bruto.length > 4000) return erroEsc("falou demais de uma vez. corta em duas partes e manda de novo");
   $("err2").classList.add("hidden");
   $("res2").innerHTML = "";
@@ -861,7 +689,6 @@ async function organizar() {
     redator.hist = [{ bruto, tom: redator.tom }, ...redator.hist.filter(h => h.bruto !== bruto)].slice(0, 15);
     localStorage.setItem("cru_red_hist", JSON.stringify(redator.hist));
     $("loading2").classList.add("hidden");
-    status(null);
     renderRed();
   } catch (e) {
     erroEsc(e.message === "MUITO"
@@ -959,7 +786,6 @@ function abrirTela(qual) {
     : "cultura não se traduz. intenção atravessa.";
   if (TEM_VOZ) speechSynthesis.cancel();
   if (escrever) return;
-  if (ouvindo) { pararMic(); soltarMicrofone(); pedacos = []; }
   localStorage.setItem("cru_tela", qual);
   window.scrollTo({ top: 0 });
 }
