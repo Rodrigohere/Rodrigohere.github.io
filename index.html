@@ -166,6 +166,8 @@
     margin-top:18px; margin-bottom:-18px; background:#1c1917; color:#fffbeb; padding:9px 12px;
     font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:1px;
   }
+  .conferido { margin-top:6px; font-size:9px; letter-spacing:1px; color:#a8a29e; text-transform:uppercase; font-weight:700; }
+  .conferido.ruim { color:#fca5a5; }
   .go.preta { background:#1c1917; }
   .go.preta:disabled { opacity:.25; }
   /* Rodrigo 25/09: os tres botoes lado a lado empurraram o ORGANIZAR pra fora da
@@ -711,6 +713,7 @@ const redator = {
   tom: localStorage.getItem("cru_tom") || "natural",
   paras: [],
   completo: null,        // o texto antes de enxugar, pra ele poder voltar
+  conferencia: null,     // o que a conferencia achou que sumiu no enxugar
   marcados: new Set(),
   editando: null,
   bruto: "",
@@ -818,6 +821,7 @@ async function organizar(depoisEnxuga) {
     redator.marcados.clear();
     redator.editando = null;
     redator.completo = null;
+    redator.conferencia = null;
     guardar(bruto);
     $("loading2").classList.add("hidden");
     avisarSeCortou();
@@ -838,7 +842,12 @@ function renderRed() {
   const marcados = () => redator.paras.map((t, i) => i).filter(i => redator.marcados.has(i));
   const letras = (a) => a.join(" ").length;
   res.innerHTML = `
-    ${redator.completo ? `<div class="enxuto">versão enxuta · ${redator.paras.length} parágrafo${redator.paras.length > 1 ? "s" : ""} no lugar de ${redator.completo.length}, ${Math.max(1, Math.round(100 - letras(redator.paras) / letras(redator.completo) * 100))}% menor</div>` : ""}
+    ${redator.completo ? `<div class="enxuto">versão enxuta · ${redator.paras.length} parágrafo${redator.paras.length > 1 ? "s" : ""} no lugar de ${redator.completo.length}, ${Math.max(1, Math.round(100 - letras(redator.paras) / letras(redator.completo) * 100))}% menor
+      <div class="conferido ${redator.conferencia && (redator.conferencia.faltou.length || redator.conferencia.perguntasSumidas) ? "ruim" : ""}">${
+        redator.conferencia && (redator.conferencia.faltou.length || redator.conferencia.perguntasSumidas)
+          ? "⚠️ ficou de fora: " + esc(redator.conferencia.faltou.slice(0, 8).join(", ")) + (redator.conferencia.perguntasSumidas ? " · e " + redator.conferencia.perguntasSumidas + " pergunta(s)" : "") + " · confere no completo"
+          : "✓ conferido: nenhum número, nome ou pergunta ficou de fora"
+      }</div></div>` : ""}
     <div class="texto-card">
       ${redator.paras.map((t, i) => {
         const tr = redator.trads[i];
@@ -956,6 +965,24 @@ async function enxugar() {
       if (dedeNovo.length && dedeNovo.join(" ").length < novos.join(" ").length) novos = dedeNovo;
     }
     if (!novos.length) throw new Error("VAZIO");
+
+    // conferencia: o que sumiu volta, e o que insistir em faltar vai escrito na tela
+    let perdas = oQueSumiu(inteiro, novos.join("\n\n"));
+    if (perdas.faltou.length || perdas.perguntasSumidas) {
+      $("loading2").innerHTML = '<span class="pulse"></span> conferindo se não ficou nada importante de fora...';
+      try {
+        const cru2 = await pedir(repararPrompt(novos.join("\n\n"), perdas.faltou, perdas.perguntasSumidas));
+        const consertado = arrumaTexto(soOTexto(cru2), redator.tom).split(/\n{2,}/).map(x => x.trim()).filter(Boolean);
+        if (consertado.length) {
+          const agora = oQueSumiu(inteiro, consertado.join("\n\n"));
+          if (agora.faltou.length + agora.perguntasSumidas <= perdas.faltou.length + perdas.perguntasSumidas) {
+            novos = consertado;
+            perdas = agora;
+          }
+        }
+      } catch {}
+    }
+    redator.conferencia = perdas;
     redator.completo = redator.paras;     // guarda o de antes pra ele poder voltar
     redator.paras = novos;
     redator.trads = {};
@@ -970,6 +997,59 @@ async function enxugar() {
   }
 }
 
+// Rodrigo 25/09/2026: "tem que ser reducao inteligente, porque eu ja tive
+// conversas com inteligencia artificial onde resumiam e ao mesmo tempo perdiam
+// contextos importantes". Entao o app CONFERE, nao confia: antes e depois de
+// encurtar ele tira do texto os itens que nao podem sumir (numero, valor, data,
+// nome proprio, pergunta) e compara um por um. O que faltar, ele manda buscar de
+// volta, e o que ainda faltar aparece escrito na tela.
+const PALAVRAS_COMUNS = new Set(("A O E Os As Um Uma Eu Ele Ela Nos Nós Se Mas Entao Então Porque Quando Como Isso Isto " +
+  "Essa Esse Sobre Depois Outra Outro Tambem Também Preciso Ja Já Nao Não Ai Aí Aqui Qualquer Bom Boa Cara Tem Vai So Só " +
+  "Da De Do Na No Em Pra Para Por Que Com Sem Ate Até Tudo Todo Toda Agora Hoje Ontem Amanha Amanhã Eles Voce Você " +
+  "Ah Oi Ola Olá Entrei Falei Mandei Fiquei Vou Ter Foi Era Tinha Sim Resumindo").split(/\s+/));
+
+function itensDuros(t) {
+  const texto = String(t || "");
+  const numeros = (texto.match(/\d+(?:[.,:\/-]\d+)*/g) || []).filter(n => n.length >= 2);
+  const nomes = [];
+  texto.split(/[.!?\n]+/).forEach(frase => {
+    frase.trim().split(/\s+/).slice(1).forEach(p => {   // pula a 1a palavra: maiuscula de comeco de frase nao vale
+      const limpo = p.replace(/^[^A-Za-zÀ-ÿ]+|[^A-Za-zÀ-ÿ]+$/g, "");
+      if (limpo.length >= 3 && /^[A-ZÀ-Ý]/.test(limpo) && !PALAVRAS_COMUNS.has(limpo)) nomes.push(limpo);
+    });
+  });
+  return {
+    numeros: [...new Set(numeros)],
+    nomes: [...new Set(nomes)],
+    perguntas: (texto.match(/\?/g) || []).length
+  };
+}
+
+function oQueSumiu(antes, depois) {
+  const a = itensDuros(antes), d = itensDuros(depois);
+  const baixo = depois.toLowerCase();
+  const faltou = [];
+  a.numeros.forEach(n => { if (!depois.includes(n)) faltou.push(n); });
+  a.nomes.forEach(n => { if (!baixo.includes(n.toLowerCase())) faltou.push(n); });
+  return { faltou, perguntasSumidas: Math.max(0, a.perguntas - d.perguntas) };
+}
+
+function repararPrompt(enxuto, faltando, perguntasSumidas) {
+  return `Este é um texto curto que saiu do resumo de uma fala. No caminho ele perdeu informação que não podia perder.
+
+FALTOU: ${faltando.join(", ")}${perguntasSumidas ? `. Além disso sumiram ${perguntasSumidas} pergunta(s) que a pessoa fez, e toda pergunta tem que continuar no texto` : ""}.
+
+SUA TAREFA: devolver o mesmo texto com essas informações de volta, encaixadas onde fazem sentido. Não reescreva o que já está certo, não aumente o texto além do necessário pra caber o que faltou, e não invente nada em volta.
+
+PROIBIDO: travessão e hífen de pontuação, emoji, bullet, título e asterisco.
+
+TEXTO:
+"""${enxuto}"""
+
+Responda SOMENTE com JSON válido, sem markdown:
+{"texto":"o texto com o que faltava de volta, parágrafos separados por \\n\\n"}`;
+}
+
 // Uma volta do enxugar: pede, arruma e devolve os paragrafos.
 async function pedirEnxuto(texto, alvo, quantos) {
   const cru = await pedir(enxugarPrompt(texto, redator.tom, alvo, quantos));
@@ -980,6 +1060,7 @@ function voltarCompleto() {
   if (!redator.completo) return;
   redator.paras = redator.completo;
   redator.completo = null;
+  redator.conferencia = null;
   redator.trads = {};
   redator.marcados.clear();
   guardar();
@@ -1097,7 +1178,7 @@ abrirTela(localStorage.getItem("cru_tela") || "traduzir");
 // sozinho nem com a publicacao feita. Agora ele pergunta a versao toda vez que
 // volta pra frente e se atualiza. Se tiver texto na tela, ele nao toma a decisao
 // pelo Rodrigo: mostra o botao e espera o toque.
-const VERSAO = "16";
+const VERSAO = "17";
 
 // Texto guardado volta sozinho depois do reload, entao nao e motivo pra segurar
 // a atualizacao. Só segura o que se perderia: uma edicao aberta ou algo digitado
