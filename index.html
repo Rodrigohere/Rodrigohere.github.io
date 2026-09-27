@@ -139,6 +139,7 @@
     text-transform:uppercase; letter-spacing:1px; padding:9px 11px;
     border:2px solid #b91c1c; white-space:nowrap; flex-shrink:0;
   }
+  .troca.voltar { background:transparent; color:#78716c; border-color:#d6d3d1; }
   .troca:active { transform:translateY(1px); }
   .limpa {
     font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:1px;
@@ -207,16 +208,16 @@
 <header>
   <div>
     <h1>CRU<span class="dot">.</span></h1>
-    <div class="sub" id="sub">tradutor sem filtro</div>
+    <div class="sub" id="sub">você fala, ele arruma</div>
   </div>
   <div style="display:flex;align-items:center;gap:6px;">
     <select id="lang"></select>
-    <button class="troca" id="troca">✍️ escrever</button>
+    <button class="troca" id="troca">🌐 traduzir</button>
   </div>
 </header>
 
 <main>
-<section id="view-traduzir">
+<section id="view-traduzir" class="hidden">
   <div class="box">
     <textarea id="input" rows="3" placeholder="Escreve do teu jeito. Palavrão, gíria, ironia, tudo passa."></textarea>
     <div class="bar">
@@ -241,7 +242,7 @@
   </div>
 </section>
 
-<section id="view-escrever" class="hidden">
+<section id="view-escrever">
   <div class="box">
     <textarea id="fala" rows="4" placeholder="Toca aqui, aperta o 🎤 do teclado do teu iPhone e fala à vontade. Depois é só ORGANIZAR."></textarea>
     <div class="bar">
@@ -269,7 +270,7 @@
 </section>
 </main>
 
-<footer id="rodape">cultura não se traduz. intenção atravessa.</footer>
+<footer id="rodape">você fala do teu jeito. ele só organiza.</footer>
 
 
 <script>
@@ -1124,18 +1125,21 @@ function renderHistRed() {
 async function copiar(t) { try { await navigator.clipboard.writeText(t); } catch {} }
 
 // ── trocar de funcao ───────────────────────────────────────────────────────
+// 27/09/2026: nao existe mais escolha de modo no topo. O app abre sempre em
+// ESCREVER (o uso de todo dia, ditar e organizar) e o botao vermelho de cima
+// so leva pra traducao; la ele vira "← voltar", discreto, e nada fica gravado.
 function abrirTela(qual) {
   const escrever = qual === "escrever";
   $("view-traduzir").classList.toggle("hidden", escrever);
   $("view-escrever").classList.toggle("hidden", !escrever);
-  $("troca").textContent = escrever ? "🌐 traduzir" : "✍️ escrever";
+  $("troca").textContent = escrever ? "🌐 traduzir" : "← voltar";
+  $("troca").classList.toggle("voltar", !escrever);
   $("sub").textContent = escrever ? "você fala, ele arruma" : "tradutor sem filtro";
   $("rodape").textContent = escrever
     ? "você fala do teu jeito. ele só organiza."
     : "cultura não se traduz. intenção atravessa.";
   if (TEM_VOZ) speechSynthesis.cancel();
   if (escrever) return;
-  localStorage.setItem("cru_tela", qual);
   window.scrollTo({ top: 0 });
 }
 $("troca").onclick = () => abrirTela($("view-escrever").classList.contains("hidden") ? "escrever" : "traduzir");
@@ -1170,7 +1174,7 @@ dicaTom();
   if (rascunho) { fala.value = rascunho; fala.dispatchEvent(new Event("input")); }
   pintarEnxuga();
 })();
-abrirTela(localStorage.getItem("cru_tela") || "traduzir");
+abrirTela("escrever");
 
 // ── versao nova chega sozinha ─────────────────────────────────────────────
 // Rodrigo 25/09/2026 mandou a tela de um conserto que ja estava no ar ha uma
@@ -1178,7 +1182,7 @@ abrirTela(localStorage.getItem("cru_tela") || "traduzir");
 // sozinho nem com a publicacao feita. Agora ele pergunta a versao toda vez que
 // volta pra frente e se atualiza. Se tiver texto na tela, ele nao toma a decisao
 // pelo Rodrigo: mostra o botao e espera o toque.
-const VERSAO = "17";
+const VERSAO = "18";
 
 // Texto guardado volta sozinho depois do reload, entao nao e motivo pra segurar
 // a atualizacao. Só segura o que se perderia: uma edicao aberta ou algo digitado
