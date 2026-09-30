@@ -219,7 +219,7 @@
 <main>
 <section id="view-traduzir" class="hidden">
   <div class="box">
-    <textarea id="input" rows="3" placeholder="Escreve do teu jeito. Palavrão, gíria, ironia, tudo passa."></textarea>
+    <textarea id="input" rows="3" autocomplete="off" placeholder="Escreve do teu jeito. Palavrão, gíria, ironia, tudo passa."></textarea>
     <div class="bar">
       <div class="modes" id="modes">
         <button data-m="auto" class="on">auto</button>
@@ -244,7 +244,7 @@
 
 <section id="view-escrever">
   <div class="box">
-    <textarea id="fala" rows="4" placeholder="Toca aqui, aperta o 🎤 do teclado do teu iPhone e fala à vontade. Depois é só ORGANIZAR."></textarea>
+    <textarea id="fala" rows="4" autocomplete="off" placeholder="Toca aqui, aperta o 🎤 do teclado do teu iPhone e fala à vontade. Depois é só ORGANIZAR."></textarea>
     <div class="bar">
       <div class="dita">🎤 dita pelo teclado</div>
       <div class="botoes">
@@ -1174,7 +1174,34 @@ dicaTom();
   if (rascunho) { fala.value = rascunho; fala.dispatchEvent(new Event("input")); }
   pintarEnxuga();
 })();
+// A tela de traduzir nao tem gaveta de proposito, mas quem repunha o texto era o
+// WebKit do iPhone: ele restaura o conteudo dos campos sozinho, entao o app
+// reabria com a palavra de ontem e, pior, ela voltava DEPOIS do reload em cima da
+// palavra nova que o Rodrigo tinha acabado de digitar (Rodrigo 30/09/2026). Com o
+// autocomplete="off" no HTML e esta limpeza no arranque, o campo nasce vazio e
+// quem manda nele e o app.
+input.value = "";
+input.dispatchEvent(new Event("input"));
+
 abrirTela("escrever");
+
+// ── volta no dia seguinte comeca limpa ───────────────────────────────────
+// No iPhone o app instalado nao morre quando se fecha: fica congelado em memoria,
+// e abrir de novo e voltar pra MESMA tela de ontem. Se ficou mais de meia hora
+// fora, o campo de traduzir recomeca vazio. Ida e volta curta (copiar a traducao
+// no zap e voltar) nao mexe em nada.
+const PAUSA_LIMPA = 30 * 60 * 1000;
+let saiuEm = 0;
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) { saiuEm = Date.now(); return; }
+  if (saiuEm && Date.now() - saiuEm > PAUSA_LIMPA) {
+    input.value = "";
+    input.dispatchEvent(new Event("input"));
+    $("hint").classList.add("hidden");
+    $("err").classList.add("hidden");
+  }
+  saiuEm = 0;
+});
 
 // ── versao nova chega sozinha ─────────────────────────────────────────────
 // Rodrigo 25/09/2026 mandou a tela de um conserto que ja estava no ar ha uma
@@ -1182,7 +1209,7 @@ abrirTela("escrever");
 // sozinho nem com a publicacao feita. Agora ele pergunta a versao toda vez que
 // volta pra frente e se atualiza. Se tiver texto na tela, ele nao toma a decisao
 // pelo Rodrigo: mostra o botao e espera o toque.
-const VERSAO = "18";
+const VERSAO = "19";
 
 // Texto guardado volta sozinho depois do reload, entao nao e motivo pra segurar
 // a atualizacao. Só segura o que se perderia: uma edicao aberta ou algo digitado
