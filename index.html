@@ -119,6 +119,7 @@
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   }
   footer { text-align:center; padding:14px; font-size:10px; color:#a8a29e; font-weight:500; }
+  .vtag { text-align:center; font-size:9px; color:#d6d3d1; padding-bottom:16px; font-weight:500; }
   .gear { background:none; border:none; font-size:18px; padding:4px; }
   .overlay {
     position:fixed; inset:0; background:rgba(28,25,23,.92); z-index:50;
@@ -271,6 +272,7 @@
 </main>
 
 <footer id="rodape">você fala do teu jeito. ele só organiza.</footer>
+<div class="vtag" id="vtag"></div>
 
 
 <script>
@@ -591,10 +593,13 @@ async function copy(t, btn) {
 
 function renderHist() {
   const h = state.hist;
-  if (h.length <= 1) return;
+  // Com a tela limpa (nenhuma traducao em cima), o item mais novo tambem entra na
+  // lista: senao ele sumia junto com o card que saiu da tela.
+  const de = state.result ? 1 : 0;
+  if (h.length <= de) { $("hist").classList.add("hidden"); return; }
   $("hist").classList.remove("hidden");
-  $("histlist").innerHTML = h.slice(1, 15).map((x,i) =>
-    `<button class="hist-item" data-i="${i+1}">${esc(x.original)}</button>`).join("");
+  $("histlist").innerHTML = h.slice(de, de + 14).map((x,i) =>
+    `<button class="hist-item" data-i="${i+de}">${esc(x.original)}</button>`).join("");
   $("histlist").querySelectorAll(".hist-item").forEach(b => b.onclick = () => {
     state.result = state.hist[+b.dataset.i];
     state.showFormal = false;
@@ -1174,14 +1179,31 @@ dicaTom();
   if (rascunho) { fala.value = rascunho; fala.dispatchEvent(new Event("input")); }
   pintarEnxuga();
 })();
+// Devolve a tela de traduzir ao estado de primeira vez: campo, traducao que
+// estava em cima, avisos. O historico nao se perde, e a traducao que saiu da tela
+// entra nele.
+function limparTraduzir() {
+  input.value = "";
+  input.dispatchEvent(new Event("input"));
+  state.result = null;
+  state.showFormal = false;
+  if (TEM_VOZ) { speechSynthesis.cancel(); _falandoEm = null; }
+  const res = $("res");
+  res.classList.add("hidden");
+  res.innerHTML = "";
+  $("hint").classList.add("hidden");
+  $("err").classList.add("hidden");
+  $("loading").classList.add("hidden");
+  renderHist();
+}
+
 // A tela de traduzir nao tem gaveta de proposito, mas quem repunha o texto era o
 // WebKit do iPhone: ele restaura o conteudo dos campos sozinho, entao o app
 // reabria com a palavra de ontem e, pior, ela voltava DEPOIS do reload em cima da
 // palavra nova que o Rodrigo tinha acabado de digitar (Rodrigo 30/09/2026). Com o
 // autocomplete="off" no HTML e esta limpeza no arranque, o campo nasce vazio e
 // quem manda nele e o app.
-input.value = "";
-input.dispatchEvent(new Event("input"));
+limparTraduzir();
 
 abrirTela("escrever");
 
@@ -1190,18 +1212,26 @@ abrirTela("escrever");
 // e abrir de novo e voltar pra MESMA tela de ontem. Se ficou mais de meia hora
 // fora, o campo de traduzir recomeca vazio. Ida e volta curta (copiar a traducao
 // no zap e voltar) nao mexe em nada.
+// Rodrigo 01/10/2026: limpar so o campo nao resolveu, porque a TRADUCAO anterior
+// continuava na tela. E contar o tempo pelo momento em que o app saiu de frente
+// tambem falha: quando o iPhone congela o app, muitas vezes nao vem aviso nenhum.
+// Agora o relogio corre desde o ULTIMO TOQUE, que e exatamente o que ele falou,
+// "fica muito tempo sem usar", e quem volta depois disso acha a tela limpa.
 const PAUSA_LIMPA = 30 * 60 * 1000;
-let saiuEm = 0;
-document.addEventListener("visibilitychange", () => {
-  if (document.hidden) { saiuEm = Date.now(); return; }
-  if (saiuEm && Date.now() - saiuEm > PAUSA_LIMPA) {
-    input.value = "";
-    input.dispatchEvent(new Event("input"));
-    $("hint").classList.add("hidden");
-    $("err").classList.add("hidden");
-  }
-  saiuEm = 0;
-});
+let ultimoUso = Date.now();
+["pointerdown","keydown","input"].forEach(ev =>
+  document.addEventListener(ev, () => { ultimoUso = Date.now(); }, true));
+
+function talvezLimpar() {
+  if (Date.now() - ultimoUso > PAUSA_LIMPA) limparTraduzir();
+  ultimoUso = Date.now();
+}
+
+document.addEventListener("visibilitychange", () => { if (!document.hidden) talvezLimpar(); });
+// O iPhone tambem devolve a pagina inteira de um cache proprio, e nesse caminho o
+// script nao roda de novo: sem isto a tela de ontem voltava intacta.
+window.addEventListener("pageshow", (e) => { if (e.persisted) talvezLimpar(); });
+window.addEventListener("focus", talvezLimpar);
 
 // ── versao nova chega sozinha ─────────────────────────────────────────────
 // Rodrigo 25/09/2026 mandou a tela de um conserto que ja estava no ar ha uma
@@ -1209,7 +1239,8 @@ document.addEventListener("visibilitychange", () => {
 // sozinho nem com a publicacao feita. Agora ele pergunta a versao toda vez que
 // volta pra frente e se atualiza. Se tiver texto na tela, ele nao toma a decisao
 // pelo Rodrigo: mostra o botao e espera o toque.
-const VERSAO = "19";
+const VERSAO = "20";
+$("vtag").textContent = "v" + VERSAO;
 
 // Texto guardado volta sozinho depois do reload, entao nao e motivo pra segurar
 // a atualizacao. Só segura o que se perderia: uma edicao aberta ou algo digitado
